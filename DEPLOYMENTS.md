@@ -117,6 +117,67 @@ rateBps      600           the mandate floor, computed identically off-chain
 reasoningRef 0xed0b2a16e115fc7a…
 ```
 
+## The reasoning record
+
+Topic **`0.0.10367534`** — every underwriting opinion, published before anyone
+knows who won.
+
+The bid on the market carries a `reasoningRef`. The contract never reads it; its
+only job is to bind a bid to an explanation that already existed. The reference
+is `keccak256` of the exact bytes published, not a topic and sequence number — a
+sequence number says *where* the reasoning is and could later point at something
+edited, a content hash says *what* it was and cannot.
+
+### Check it end to end
+
+```bash
+MIRROR=https://testnet.mirrornode.hedera.com/api/v1
+
+# the reasoning, as HCS ordered it
+curl -s "$MIRROR/topics/0.0.10367534/messages?limit=1&order=desc" \
+  | jq -r '.messages[0].message' | base64 -d | tee msg.json
+cast keccak -- 0x$(xxd -p -c 999999 msg.json)
+# 0xff58c2ae6c7ec3495667ef20c4b6f0e95eb6bb34a7f0452ee68b8d022f2c2a00
+
+# what the bid on-chain committed to
+cast call 0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C "bestBid(uint256)" 1 --rpc-url $RPC
+# ...reasoningRef == 0xff58c2ae6c7ec349...
+```
+
+Measured on this run:
+
+```
+reasoning consensus   1788548384.311754
+bid consensus         1788548388.699948
+                      the reasoning is 4.388s older than the bid it explains
+```
+
+That ordering is the point. The explanation reached consensus before the bid
+that carries its hash, so it cannot have been written to fit the outcome. The
+published record itself:
+
+```json
+{
+  "agent": "0x0cA19581080F5dcaB2459296CeCa82f87BE820D9",
+  "underwriter": "0x31f66ee3A1933b42e9d1904373f97ca6f900A89C",
+  "requestId": "1",
+  "docHash": "0xbcef65bcc05930a40437ef62f4df6ef7f31e30be53fcc1ced62f653ba54050dc",
+  "docFromChain": true,
+  "bid": true,
+  "repayAmount": "10049315069",
+  "rateBps": 600,
+  "reasons": ["senior, with a stated maturity"],
+  "flags": []
+}
+```
+
+The topic has **no submit key**, deliberately. A submit key would let whoever
+holds it decide whose reasoning is allowed to exist, which is the opposite of
+what the record is for. The binding that matters is not that only approved
+agents wrote there — it is that a bid carries the hash of a message which
+already had a consensus timestamp. A topic full of other people's opinions does
+not weaken that.
+
 ## Settlement the network performs itself
 
 Awarding on the current market emits `SettlementScheduled`, and the schedule is
