@@ -60,7 +60,22 @@ export class RuleBasedReasoner implements Reasoner {
     const reasons: string[] = [];
     const flags: string[] = [];
 
-    const senior = /\bsenior\b/.test(text) && !/\bsubordinat/.test(text);
+    // Seniority has to be read at sentence level, not by keyword. A real
+    // prospectus says the notes "rank ahead of all unsecured and subordinated
+    // indebtedness" — a substring search for "subordinated" reads that as the
+    // opposite of what it means and refuses a perfectly good senior note.
+    // Caught on live testnet against the demo prospectus, which is a small
+    // version of exactly why this job wants a reader rather than a matcher.
+    const sentences = text.split(/[.\n]+/);
+    const claimsSenior = sentences.some(
+      (t) => /\bsenior\s+(secured|unsecured)\s+(obligation|note|bond|debt)/.test(t) ||
+             /\b(notes?|bonds?|securities)\b[^.]*\bare\b[^.]*\bsenior\b/.test(t),
+    );
+    const claimsSubordinated = sentences.some(
+      (t) => /\b(notes?|bonds?|securities)\b[^.]*\bare\b[^.]*\bsubordinated\b/.test(t) ||
+             /\bsubordinated\s+(obligation|note|bond)/.test(t),
+    );
+    const senior = claimsSenior && !claimsSubordinated;
     const hasMaturity = /matur|redemption date|due 20\d\d/.test(text);
 
     // An imperative inside a counterparty's document is a finding, never an

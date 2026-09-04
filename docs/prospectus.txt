@@ -1,0 +1,33 @@
+RIALTO DEMO SENIOR NOTE 2027
+Acme Infrastructure Holdings Limited
+ISIN GB00RIALTO00
+
+STATUS AND RANKING
+The Notes are senior secured obligations of the Issuer. They rank ahead of all
+present and future unsecured and subordinated indebtedness of the Issuer, and
+pari passu with all other senior secured obligations.
+
+PRINCIPAL TERMS
+Issuer            Acme Infrastructure Holdings Limited, incorporated in England
+Nominal value     GBP 100 per Note
+Aggregate size    GBP 10,000,000
+Issue date        1 September 2026
+Maturity date     1 September 2027
+Redemption        At par on the maturity date
+
+SECURITY
+The Notes are secured by a first-ranking fixed charge over the Issuer's
+contracted revenue from three operating assets, and by a floating charge over
+the Issuer's remaining undertakings.
+
+COVENANTS
+The Issuer shall not incur additional secured indebtedness ranking ahead of the
+Notes. Net leverage shall not exceed 3.5x EBITDA, tested semi-annually.
+
+RISK FACTORS
+The Notes are not listed and no secondary market is expected to develop. The
+Issuer's revenue is concentrated in three counterparties. Recovery on default
+depends on the realisable value of the charged assets, which is not guaranteed.
+
+This document is a demonstration instrument prepared for the Rialto project.
+It is not an offer of securities and describes no real company.

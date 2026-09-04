@@ -91,3 +91,40 @@ describe("formOpinion", () => {
     expect(why).toContain("malformed");
   });
 });
+
+/**
+ * Read against the actual document on the security, not a toy string.
+ *
+ * The first version of this reasoner searched for "subordinated" anywhere in
+ * the text and refused the note. The prospectus says the notes "rank ahead of
+ * all present and future unsecured and subordinated indebtedness" — the word is
+ * there to say what they outrank. A keyword match cannot tell those two apart,
+ * which is the whole argument for a reader in one line.
+ */
+describe("the real demo prospectus", () => {
+  const REAL = [
+    "RIALTO DEMO SENIOR NOTE 2027",
+    "Acme Infrastructure Holdings Limited",
+    "STATUS AND RANKING",
+    "The Notes are senior secured obligations of the Issuer. They rank ahead of all",
+    "present and future unsecured and subordinated indebtedness of the Issuer, and",
+    "pari passu with all other senior secured obligations.",
+    "Maturity date     1 September 2027",
+  ].join("\n");
+
+  it("is read as senior, and bid on", async () => {
+    const { opinion } = await formOpinion(reasoner(), req, REAL, STRATEGY);
+    expect(opinion?.bid).toBe(true);
+    expect(opinion?.reasons.join(" ")).toContain("senior");
+  });
+
+  it("still refuses a note that really is subordinated", async () => {
+    const sub = REAL.replace(
+      "The Notes are senior secured obligations of the Issuer.",
+      "The Notes are subordinated obligations of the Issuer.",
+    );
+    const { opinion } = await formOpinion(reasoner(), req, sub, STRATEGY);
+    expect(opinion?.bid).toBe(false);
+    expect(opinion?.reasons.join(" ")).toContain("seniority");
+  });
+});
