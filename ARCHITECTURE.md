@@ -340,6 +340,30 @@ The factory is in active use — deployments occur regularly, including on
    (see §5.3), which removes this requirement for the market contract.
 4. Hedera meters gas differently from Ethereum. Never trust a local estimate;
    measure on testnet.
+5. **`forge script --gas-limit` is silently ignored.** Forge treats it as an
+   alias for `--block-gas-limit`, so it does nothing to the transaction. The
+   flag that matters is `-g` / `--gas-estimate-multiplier`, and Hedera's relay
+   under-reports deployment gas badly enough that the 130% default runs out
+   mid-constructor. Use `-g 2500`. This costs a deployment's worth of HBAR to
+   discover, twice.
+6. **ATS validates the ISIN, and it is a real ISIN.** `deployBond` reverts with
+   `WrongISIN(string)` (`0xdf749cc5`) unless the string is exactly 12
+   characters, and with `WrongISINChecksum(string)` unless the twelfth is a
+   correct Luhn check digit over the first eleven — letters expanding to two
+   digits each (`A` = 10 … `Z` = 35). A plausible-looking identifier such as
+   `GB00RIALTO001` is 13 characters and fails on length before the checksum is
+   even reached. Source: `packages/ats/contracts/contracts/factory/isinValidator.sol`
+   with `_ISIN_LENGTH = 12` and `_CHECKSUM_POSITION_IN_ISIN = 11` in
+   `constants/values.sol`. `GB00RIALTO00` is valid.
+
+**Configuration ids, enumerated on-chain rather than assumed.** Calling
+`getConfigurations(0, 10)` on the resolver returns eight ids — `0x…01` through
+`0x…08`. `0x…02` is BOND and answers `getLatestVersionByConfiguration` with
+version 1, which is what `resolverProxyConfiguration` must be set to.
+
+```bash
+cast calldata "getConfigurations(uint256,uint256)" 0 10   # then eth_call the resolver
+```
 
 ### 3.5 ATS interfaces used (verified from v8.0.0 source)
 
