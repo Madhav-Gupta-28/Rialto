@@ -130,6 +130,17 @@ export async function committed(c: Chain, owner: Hex): Promise<bigint> {
   return live + reserved;
 }
 
+/** The standing best bid, so an agent does not try to outbid itself. */
+export async function bestBid(c: Chain, id: bigint): Promise<{underwriter: Hex; repayAmount: bigint}> {
+  const r = (await c.pub.readContract({
+    address: config.market,
+    abi: marketAbi,
+    functionName: "bestBid",
+    args: [id],
+  })) as readonly [Hex, Hex, bigint, Hex];
+  return { underwriter: r[0], repayAmount: r[2] };
+}
+
 export async function submitBid(c: Chain, id: bigint, repayAmount: bigint, reasoningRef: Hex): Promise<Hex> {
   const hash = await c.wallet.writeContract({
     address: config.market,

@@ -43,7 +43,7 @@ contract RialtoMarket {
      * Only ever reached through the guarded helpers at the bottom of this file,
      * because on any network without it these calls fail at the EVM level.
      */
-    IHederaScheduleService private constant HSS = IHederaScheduleService(address(0x16b));
+    address private constant HSS = address(0x16b);
     int64 private constant HSS_SUCCESS = 22;
 
     /// Enough for a status write, an exposure decrement and one transfer.
@@ -440,32 +440,48 @@ contract RialtoMarket {
      *      award while decoding.
      */
     function _scheduleSettlement(uint256 id, uint64 dueAt) private {
-        // The guard that actually matters. Solidity emits an extcodesize check
-        // before a high-level call, and it reverts in *this* frame — try/catch
-        // cannot reach it. Without this line, every award on a chain with
-        // nothing deployed at 0x…016b reverts, which is every chain but Hedera,
-        // including a local test node.
-        if (address(HSS).code.length == 0) return;
-
         // +1 because claim() requires block.timestamp strictly past dueAt.
         uint256 expiry = uint256(dueAt) + 1;
 
-        try HSS.hasScheduleCapacity(expiry, CLAIM_GAS) returns (bool hasRoom) {
-            if (!hasRoom) return;
-        } catch {
-            return;
-        }
+        // These are raw calls on purpose, and the reason is easy to get wrong.
+        //
+        // Hedera's Schedule Service is a *native* system contract. It answers
+        // calls but has no EVM bytecode at all — `eth_getCode` on 0x…016b
+        // returns `0x`. Solidity emits an `extcodesize` check before every
+        // high-level call, so a normal `HSS.hasScheduleCapacity(...)` reverts
+        // before the call is even attempted, and `try/catch` cannot see it
+        // because the revert happens in this frame. Guarding on
+        // `address(HSS).code.length` fails the same way from the other side: it
+        // reads zero on Hedera and silently disables scheduling on the only
+        // network that supports it.
+        //
+        // A raw call does neither. On Hedera it reaches the service and returns
+        // data. On a chain with nothing deployed there it returns success with
+        // empty returndata, which the length checks below read as "no
+        // scheduling here" and skip. Every failure is a no-op that degrades to
+        // a manual claim().
+        (bool ok, bytes memory data) = HSS.staticcall(
+            abi.encodeWithSelector(IHederaScheduleService.hasScheduleCapacity.selector, expiry, CLAIM_GAS)
+        );
+        if (!ok || data.length < 32 || !abi.decode(data, (bool))) return;
 
-        try HSS.scheduleCall(address(this), expiry, CLAIM_GAS, 0, abi.encodeCall(this.claim, (id))) returns (
-            int64 rc, address schedule
-        ) {
-            if (rc == HSS_SUCCESS && schedule != address(0)) {
-                settlementSchedule[id] = schedule;
-                emit SettlementScheduled(id, schedule, expiry);
-            }
-        } catch {
-            // No HSS here. Manual claim() remains the settlement path.
-        }
+        (ok, data) = HSS.call(
+            abi.encodeWithSelector(
+                IHederaScheduleService.scheduleCall.selector,
+                address(this),
+                expiry,
+                CLAIM_GAS,
+                uint64(0),
+                abi.encodeCall(this.claim, (id))
+            )
+        );
+        if (!ok || data.length < 64) return;
+
+        (int64 rc, address schedule) = abi.decode(data, (int64, address));
+        if (rc != HSS_SUCCESS || schedule == address(0)) return;
+
+        settlementSchedule[id] = schedule;
+        emit SettlementScheduled(id, schedule, expiry);
     }
 
     /// @dev Release a schedule that can no longer do anything useful.
@@ -473,8 +489,10 @@ contract RialtoMarket {
         address schedule = settlementSchedule[id];
         if (schedule == address(0)) return;
         delete settlementSchedule[id];
-        if (address(HSS).code.length == 0) return; // see _scheduleSettlement
-        try HSS.deleteSchedule(schedule) returns (int64) {} catch {}
+        // Raw, and the result is deliberately ignored: releasing the slot is a
+        // courtesy, and failing to do it must never fail a repayment.
+        (bool ok,) = HSS.call(abi.encodeWithSelector(IHederaScheduleService.deleteSchedule.selector, schedule));
+        ok; // releasing the slot is a courtesy; failing must not fail a repayment
     }
 
     /**

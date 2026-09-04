@@ -3,7 +3,7 @@ import { config } from "./config.js";
 import { Status } from "./abi.js";
 import {
   connect, readRequest, requestCount, readDocument, readMandate,
-  resolveUnderwriter, assetAllowed, committed, submitBid, type Chain,
+  resolveUnderwriter, assetAllowed, committed, submitBid, bestBid, type Chain,
 } from "./chain.js";
 import { fetchAndVerify } from "./document.js";
 import { decide, type RequestView } from "./strategy.js";
@@ -38,6 +38,13 @@ export async function considerRequest(
 
   if (req.status !== Status.Open) return `#${id} is ${Status[req.status]}, nothing to do`;
   if (BigInt(Math.floor(Date.now() / 1000)) >= req.bidDeadline) return `#${id} auction has closed`;
+
+  // Already winning. Bidding again would only be an attempt to undercut
+  // ourselves, which the market refuses and which would waste the fee.
+  const standing = await bestBid(c, id);
+  if (standing.underwriter.toLowerCase() === underwriter.toLowerCase()) {
+    return `#${id} already holds our bid at ${standing.repayAmount}`;
+  }
 
   const mandate = await readMandate(c, underwriter);
   if (!mandate) return `#${id} skipped — no active mandate for ${underwriter}`;
@@ -122,7 +129,10 @@ async function main(): Promise<void> {
         const line = await considerRequest(c, i, underwriter, pub);
         // Only stop reconsidering once the outcome cannot change.
         if (!line.includes("nothing to do") && !line.includes("has closed")) log(line);
-        if (line.includes("bid ") || line.includes("nothing to do") || line.includes("has closed")) {
+        if (
+          line.includes("bid ") || line.includes("nothing to do") ||
+          line.includes("has closed") || line.includes("already holds")
+        ) {
           seen.add(i.toString());
         }
       }

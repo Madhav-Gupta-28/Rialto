@@ -603,4 +603,46 @@ contract RialtoMarketTest is Base {
     function testFuzz_rateBps_neverReverts(uint256 p, uint256 repay, uint64 term) public view {
         market.rateBps(p, repay, term);
     }
+
+    /**
+     * The bug that only shows up on Hedera.
+     *
+     * Its Schedule Service is a native system contract: it answers calls but
+     * has no EVM bytecode, so `extcodesize` at 0x…016b is zero. A high-level
+     * call reverts before it is made, and a `code.length` guard skips
+     * scheduling entirely — which silently disables the feature on the only
+     * network that has it.
+     *
+     * `vm.mockCall` reproduces that exactly, because it makes an address answer
+     * without giving it code. If this passes, the raw-call path is reaching a
+     * codeless responder the way it must on Hedera.
+     */
+    function test_schedulesAgainstACodelessSystemContract() public {
+        assertEq(HSS_ADDR.code.length, 0, "the fixture must have no code, as Hedera does not");
+
+        vm.mockCall(
+            HSS_ADDR,
+            abi.encodeWithSignature("hasScheduleCapacity(uint256,uint256)"),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            HSS_ADDR,
+            abi.encodeWithSignature("scheduleCall(address,uint256,uint256,uint64,bytes)"),
+            abi.encode(int64(22), address(0xC0FFEE))
+        );
+
+        uint256 id = _openBidAward();
+
+        assertEq(uint8(_status(id)), uint8(Status.Funded));
+        assertEq(market.settlementSchedule(id), address(0xC0FFEE), "settlement must be scheduled");
+    }
+
+    /// And a codeless address that answers with nothing is still just "no
+    /// scheduling here", not a failed award.
+    function test_awardSurvivesACodelessAddressThatReturnsNothing() public {
+        vm.mockCall(HSS_ADDR, abi.encodeWithSignature("hasScheduleCapacity(uint256,uint256)"), "");
+        uint256 id = _openBidAward();
+        assertEq(uint8(_status(id)), uint8(Status.Funded));
+        assertEq(market.settlementSchedule(id), address(0));
+    }
 }
