@@ -1,0 +1,31 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+bytecode_hash = "none"
+fs_permissions = [{ access = "read", path = "./" }]
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+
+[profile.ci]
+verbosity = 3
+fuzz = { runs = 5000 }
+invariant = { runs = 512, depth = 32 }
+
+[profile.default.fuzz]
+runs = 1000
+
+[profile.default.invariant]
+runs = 128
+depth = 32
+fail_on_revert = false
