@@ -53,6 +53,52 @@ probe $((NOW+5443200))  # 63 days -> false
 A 90-day term could not have its settlement scheduled at award, so the constant
 is 60 with two days of margin.
 
+## The security Rialto underwrites
+
+Issued through the live ATS factory on 2026-09-05, not mocked.
+
+| | |
+|---|---|
+| Bond | [`0x52ea050fe77a303b1a61fe15d8894892aff02114`](https://hashscan.io/testnet/contract/0x52ea050fe77a303b1a61fe15d8894892aff02114) |
+| Name / symbol | Rialto Demo Senior Note 2027 · `RDN27` · 18 decimals |
+| Deploy | tx `0xedcad6ef…735a6a5b`, 7,570,717 gas |
+| Control list | active (whitelist mode), `RialtoMarket` admitted |
+| Document | `prospectus` -> `ipfs://bafyrialtoprospectus` |
+| Document hash | `0x09540aec3448e751a6173ccfd75fd8b9eaf023807261233e48cfff5ff0e55aa4` |
+| Issued | 1,000,000 RDN27 |
+
+### The gate, checked from the chain
+
+```bash
+BOND=0x52ea050fe77a303b1a61fe15d8894892aff02114
+PROS=$(cast format-bytes32-string "prospectus")
+
+# what the security says its document is
+cast call $BOND "getDocument(bytes32)" $PROS --rpc-url $RPC
+
+# what the bytes actually hash to
+cast keccak "Rialto demo prospectus v1"
+# 0x09540aec3448e751a6173ccfd75fd8b9eaf023807261233e48cfff5ff0e55aa4
+```
+
+Both sides agree. That is the whole claim: the document is on the security,
+under a role-gated write, and anyone can check it without trusting us.
+
+## Sending transactions to ATS: use cast, not forge script
+
+`forge script` executes the script body locally against forked state, which for
+an ATS diamond means hundreds of `eth_getStorageAt` calls through the relay.
+Hedera's mirror node times out under that load:
+
+```
+Failed to get storage for 0xBA2D5FC2…18E0a
+Mirror node upstream failure: statusCode=504, timeout of 30000ms exceeded
+```
+
+The transactions above were sent with `cast send` instead, which forks nothing
+and never touches storage it does not need. The scripts are kept because they
+document the sequence and are testable locally, but the live path is `cast`.
+
 ## Asset Tokenization Studio (not ours — the live ATS deployment we build on)
 
 | Contract | Hedera ID | EVM address |
