@@ -331,7 +331,26 @@ The factory is in active use — deployments occur regularly, including on
 1. **Long-zero EVM addresses revert for alias-bearing accounts**, as both `from`
    and `to`. Always read `evm_address` from Mirror Node
    (`GET /accounts/{id}`); never hand-derive a long-zero address for an
-   *account*. Long-zero is fine for **contracts and tokens**, which have no alias.
+   *account*.
+
+   **This bites contracts too, and it bites them as a *parameter*, not only as a
+   call target.** A contract deployed through the EVM has an alias, so its
+   long-zero form is not interchangeable with its EVM address. `eth_getCode`
+   answers identically on both — 390 bytes for the ATS factory either way —
+   which is precisely what makes the long-zero form look valid. But passing the
+   resolver's long-zero address inside `SecurityData.resolver` makes
+   `deployBond` revert with a bare `CONTRACT_REVERT_EXECUTED` and no reason
+   string, because the factory then *calls into* it.
+
+   Verified by diffing two calldatas that were identical but for one word:
+
+   ```
+   0xba2d5fc2083a0b8f164c50e65d782087fba18e0a   -> deploys
+   0x00000000000000000000000000000000008c9142   -> reverts
+   ```
+
+   Use the EVM addresses from `apps/ats/web/.env.example`, never the ones
+   derived from the `0.0.x` ids.
 2. **Accounts that must be recovered by `ecrecover` (i.e. any signer) must be
    ECDSA with an EVM alias.** ED25519 or long-zero-only accounts cannot sign
    for EVM verification.
