@@ -84,6 +84,80 @@ cast keccak "Rialto demo prospectus v1"
 Both sides agree. That is the whole claim: the document is on the security,
 under a role-gated write, and anyone can check it without trusting us.
 
+## The market
+
+| Contract | Address | Note |
+|---|---|---|
+| `Mandates` | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | unchanged |
+| `RialtoMarket` | [`0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C`](https://hashscan.io/testnet/contract/0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C) | current |
+| `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
+| `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
+
+## The lifecycle, run on testnet
+
+Three parties, three separate keys: borrower `0x932a7759…`, underwriter
+`0x31f66ee3…`, and the underwriter's agent `0x0cA19581…`.
+
+| Request | Outcome | What it shows |
+|---|---|---|
+| #0 | declined by the agent | The document was replaced after the request opened. The request had frozen the old hash, the fetched bytes no longer matched, and the agent refused to reason. A bid cannot be moved by swapping the document underneath it. |
+| #1 | **Repaid** | Borrower took 100,000 dUSD against 105,000 RDN27, repaid 100,493.15, collateral returned. The underwriter earned 493.15. |
+| #2 | **Defaulted** | Term ran out unpaid. `claim` handed the 10,500 RDN27 to the lender. No auction, no liquidator, no price. |
+
+Afterwards `liveExposure` and `reservedExposure` are both zero: the accounting
+closed out.
+
+The bid on #1 was placed by the agent, and the market records both parties:
+
+```
+underwriter  0x31f66ee3…   the capital, and the loss if it goes wrong
+submitter    0x0cA19581…   the agent key that actually signed
+repayAmount  100,493.150685 dUSD
+rateBps      600           the mandate floor, computed identically off-chain
+reasoningRef 0xed0b2a16e115fc7a…
+```
+
+## Settlement the network performs itself
+
+Awarding on the current market emits `SettlementScheduled`, and the schedule is
+a real Hedera entity — not a keeper, not a bot:
+
+```bash
+curl -s https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10367472
+```
+
+```
+schedule_id        0.0.10367472
+creator            0.0.10367270      <- the market contract itself
+expiration_time    1791140001        <- one second after maturity
+wait_for_expiry    true
+executed_timestamp null               <- waiting
+deleted            false
+```
+
+At that second, Hedera calls `claim()` on the market. Nobody has to be watching.
+
+### The bug that made the first market unable to do this
+
+Hedera's Schedule Service is a **native** system contract: it answers calls but
+has no EVM bytecode, so `eth_getCode` on `0x…016b` returns `0x`. That defeats
+both obvious approaches, in opposite directions:
+
+- A high-level Solidity call emits an `extcodesize` check first, so it reverts
+  before the call is made — and `try/catch` cannot catch it, because the revert
+  happens in the caller's own frame.
+- Guarding on `address(HSS).code.length == 0` reads zero **on Hedera**, and
+  silently disables scheduling on the only network that has it.
+
+The first fix caused the second. The working version uses raw `staticcall` and
+`call` with returndata length checks: on Hedera they reach the service, and on a
+chain with nothing deployed there they return success with empty returndata,
+which reads as "no scheduling here" and degrades to a manual `claim()`.
+
+The regression test uses `vm.mockCall` rather than `vm.etch`, because `mockCall`
+makes an address answer *without giving it code* — the exact shape of a Hedera
+system contract.
+
 ## The document
 
 Published, so the claim is checkable by anyone rather than only by us.
