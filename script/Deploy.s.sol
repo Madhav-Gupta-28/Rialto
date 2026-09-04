@@ -7,7 +7,12 @@ import {Mandates} from "../src/Mandates.sol";
 import {RialtoMarket} from "../src/RialtoMarket.sol";
 
 /**
- * Deploy Rialto.
+ * Deploy Rialto. Idempotent: set MANDATES_ADDRESS to reuse an existing one.
+ *
+ * The market needs a little HBAR to pay for scheduling its own settlements.
+ * That is a separate, explicit transfer rather than something this script does
+ * on its own — nothing depends on the balance, and an empty one only means
+ * maturity is settled by a manual claim().
  *
  *   forge script script/Deploy.s.sol:Deploy \
  *     --rpc-url $HEDERA_TESTNET_RPC --broadcast -g 2500
@@ -28,19 +33,23 @@ contract Deploy is Script {
         console2.log("balance  ", operator.balance);
         console2.log("chainid  ", block.chainid);
 
+        // Reuse an already-deployed Mandates when one is given. Deploying is
+        // metered in real HBAR, and a script that silently redeploys a
+        // perfectly good contract because a later step failed is a script that
+        // charges you for its own retries.
+        address existing = vm.envOr("MANDATES_ADDRESS", address(0));
+
         vm.startBroadcast(pk);
 
-        Mandates mandates = new Mandates();
-        RialtoMarket market = new RialtoMarket(mandates);
-
-        // Seed the market with a little HBAR so it can pay for scheduling its
-        // own settlements. Nothing depends on this balance: an empty one just
-        // means maturity is settled by a manual claim() instead. Skipped when
-        // the operator is thin, so a low balance cannot fail the deployment.
-        if (operator.balance > 20 ether) {
-            (bool ok,) = payable(address(market)).call{value: 5 ether}("");
-            if (ok) console2.log("funded market for scheduling");
+        Mandates mandates;
+        if (existing != address(0) && existing.code.length > 0) {
+            mandates = Mandates(existing);
+            console2.log("reusing Mandates at", existing);
+        } else {
+            mandates = new Mandates();
         }
+
+        RialtoMarket market = new RialtoMarket(mandates);
 
         vm.stopBroadcast();
 
