@@ -84,6 +84,23 @@ cast keccak "Rialto demo prospectus v1"
 Both sides agree. That is the whole claim: the document is on the security,
 under a role-gated write, and anyone can check it without trusting us.
 
+## The document
+
+Published, so the claim is checkable by anyone rather than only by us.
+
+| | |
+|---|---|
+| URI on the security | https://gist.githubusercontent.com/Madhav-Gupta-28/42caf0455877bc587238c13419a44030/raw/prospectus.txt |
+| Hash on the security | `0xbcef65bcc05930a40437ef62f4df6ef7f31e30be53fcc1ced62f653ba54050dc` |
+
+```bash
+curl -sL <the URI above> -o p.txt
+cast keccak -- 0x$(xxd -p -c 999999 p.txt)
+# 0xbcef65bcc05930a40437ef62f4df6ef7f31e30be53fcc1ced62f653ba54050dc
+```
+
+Both sides agree, and nothing in that check trusts this repository.
+
 ## Sending transactions to ATS: use cast, not forge script
 
 `forge script` executes the script body locally against forked state, which for
