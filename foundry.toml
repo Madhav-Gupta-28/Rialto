@@ -20,12 +20,15 @@ int_types = "long"
 [profile.ci]
 verbosity = 3
 fuzz = { runs = 5000 }
-invariant = { runs = 512, depth = 32 }
+invariant = { runs = 256, depth = 400 }
 
 [profile.default.fuzz]
 runs = 1000
 
 [profile.default.invariant]
-runs = 128
-depth = 32
+# Depth has to be large enough that a single run reaches a full lifecycle:
+# open, bid, warp past the deadline, award, then repay or default. At shallow
+# depth the invariants pass because the interesting states are never reached.
+runs = 48
+depth = 250
 fail_on_revert = false
