@@ -125,6 +125,34 @@ library ATSRoles {
     bytes32 internal constant CONTROLLER = 0xb4d2b850c3ed8a234d390d5c157bbb1824883213c335ffe2a0f0761bb168713e;
     bytes32 internal constant KYC = 0x754f499f9fdfbb089d12bdec817a6863d593d8a3ea7f546c00a5cafd20957bfc;
     bytes32 internal constant PAUSER = 0x3cb8b459fdb6e7dc3d2a2aa529e530f885d45e03584adb438423209c86a2731f;
+
+    // The two below are not in that file. They were read off the
+    // `AccountHasNoRole(address,bytes32)` revert the deployed security returns,
+    // which is the only source that cannot go stale. `KYC` alone lets a holder
+    // revoke a credential but not issue one.
+    bytes32 internal constant INTERNAL_KYC_MANAGER =
+        0xdd78fdcd1b38a5360405cef8d91e758ad0f42bf2ced681b803b3c2704b0a32a7;
+    bytes32 internal constant SSI_MANAGER = 0x3120494a82251fe85b0403877539486dbfcf0f94c20741a3229cfad31f625ee1;
+}
+
+/**
+ * @notice KYC as Asset Tokenization Studio actually implements it.
+ *
+ * There is no `grantKyc(address)`; a security that is asked for one answers the
+ * diamond's `FunctionNotFound`. A credential is issued by a registered issuer
+ * and carries a validity window, so it can lapse without anyone revoking it.
+ * `getKycStatusFor` returns 0 for never-granted and for revoked alike.
+ */
+interface IATSKyc {
+    function activateInternalKyc() external returns (bool);
+    function isInternalKycActivated() external view returns (bool);
+    function addIssuer(address issuer) external;
+    function isIssuer(address issuer) external view returns (bool);
+    function grantKyc(address account, string calldata vcId, uint256 validFrom, uint256 validTo, address issuer)
+        external
+        returns (bool);
+    function revokeKyc(address account) external returns (bool);
+    function getKycStatusFor(address account) external view returns (uint8);
 }
 
 /* ─────────────────────────── coupons ─────────────────────────── */
