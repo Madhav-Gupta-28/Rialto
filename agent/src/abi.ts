@@ -127,3 +127,19 @@ export enum Status {
   Defaulted = 3,
   Cancelled = 4,
 }
+
+export const lensAbi = [
+  {
+    type: "function",
+    name: "standingOf",
+    stateMutability: "view",
+    inputs: [
+      { name: "security", type: "address" },
+      { name: "account", type: "address" },
+    ],
+    outputs: [{ type: "uint8" }],
+  },
+] as const;
+
+/** ComplianceLens.Standing, in the contract's order. */
+export const STANDING = ["Ok", "Frozen", "NotListed", "NoKyc"] as const;

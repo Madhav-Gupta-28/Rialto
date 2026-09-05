@@ -1,7 +1,7 @@
 import { createPublicClient, createWalletClient, http, type Hex, type PublicClient, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { hederaTestnet, config } from "./config.js";
-import { marketAbi, mandatesAbi, documentationAbi, Status } from "./abi.js";
+import { marketAbi, mandatesAbi, documentationAbi, lensAbi, STANDING, Status } from "./abi.js";
 import type { Mandate, RequestView } from "./strategy.js";
 import type { OnChainDocument } from "./document.js";
 
@@ -119,6 +119,34 @@ export async function assetAllowed(c: Chain, owner: Hex, asset: Hex): Promise<bo
     functionName: "assetAllowed",
     args: [owner, asset],
   })) as boolean;
+}
+
+/**
+ * Whether an account could actually receive this security.
+ *
+ * An underwriter bids on collateral it expects to take if the loan defaults. If
+ * the security would refuse that transfer — the account frozen, off the control
+ * list, or without a KYC credential — then the recovery leg of the trade does
+ * not exist, and the bid is for an unsecured loan wearing a secured one's
+ * price. The check is cheap and it is the difference between collateral and the
+ * appearance of collateral.
+ *
+ * Returns `undefined` when there is no lens configured or it will not answer,
+ * which the caller must treat as "unknown" rather than "fine".
+ */
+export async function standingOf(c: Chain, security: Hex, account: Hex): Promise<string | undefined> {
+  if (!config.lens) return undefined;
+  try {
+    const s = (await c.pub.readContract({
+      address: config.lens,
+      abi: lensAbi,
+      functionName: "standingOf",
+      args: [security, account],
+    })) as number;
+    return STANDING[s] ?? `unknown(${s})`;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Everything already committed: funded positions plus standing best bids. */

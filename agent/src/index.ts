@@ -3,7 +3,7 @@ import { config } from "./config.js";
 import { Status } from "./abi.js";
 import {
   connect, readRequest, requestCount, readDocument, readMandate,
-  resolveUnderwriter, assetAllowed, committed, submitBid, bestBid, chainNow, type Chain,
+  resolveUnderwriter, assetAllowed, committed, submitBid, bestBid, chainNow, standingOf, type Chain,
 } from "./chain.js";
 import { fetchAndVerify } from "./document.js";
 import { decide, type RequestView } from "./strategy.js";
@@ -63,15 +63,25 @@ export async function considerRequest(
 
   // Already winning. Bidding again would only be an attempt to undercut
   // ourselves, which the market refuses and which would waste the fee.
-  const standing = await bestBid(c, id);
-  if (standing.underwriter.toLowerCase() === underwriter.toLowerCase()) {
-    return settled(`#${id} already holds our bid at ${standing.repayAmount}`);
+  const ours = await bestBid(c, id);
+  if (ours.underwriter.toLowerCase() === underwriter.toLowerCase()) {
+    return settled(`#${id} already holds our bid at ${ours.repayAmount}`);
   }
 
   const mandate = await readMandate(c, underwriter);
   if (!mandate) return retry(`#${id} skipped — no active mandate for ${underwriter}`);
   if (!(await assetAllowed(c, underwriter, req.collateral))) {
     return retry(`#${id} skipped — ${req.collateral} is not on the mandate's asset list`, false);
+  }
+
+  // Could we take the collateral if this defaults? A permissioned security can
+  // refuse to deliver to an account that is frozen, off its control list, or
+  // without a KYC credential — and a bid made in that state prices a secured
+  // loan while owning an unsecured one. Unknown is not the same as clear: with
+  // no lens configured the check is skipped and said to be skipped.
+  const standing = await standingOf(c, req.collateral, underwriter);
+  if (standing && standing !== "Ok") {
+    return retry(`#${id} declined — ${underwriter} cannot receive ${req.collateral} on default (${standing})`);
   }
 
   // The URI comes from the security as it stands now; the hash to verify

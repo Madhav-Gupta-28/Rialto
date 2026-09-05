@@ -36,6 +36,11 @@ export const config = {
   get mandates(): `0x${string}` {
     return required("MANDATES_ADDRESS") as `0x${string}`;
   },
+  /** Optional. Without it the recovery check below is skipped, not faked. */
+  get lens(): `0x${string}` | undefined {
+    const a = process.env.LENS_ADDRESS;
+    return a ? (a as `0x${string}`) : undefined;
+  },
 
   /** Hedera account for HCS. Message submission needs the native SDK, not the EVM. */
   hederaAccountId: process.env.HEDERA_ACCOUNT_ID ?? "",
