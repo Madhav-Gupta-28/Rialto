@@ -42,7 +42,19 @@ contract ComplianceLens {
         BeneficiaryFrozen, // tokens frozen on the account
         BeneficiaryNotListed, // frozen at address level, or never admitted
         BeneficiaryNoKyc, // KYC revoked or never granted
-        Unreadable // the security did not answer a compliance query
+        Unreadable, // the security did not answer a compliance query
+        EscrowFrozen, // the escrow's own holding is frozen
+        EscrowNotListed, // the escrow came off the control list
+        EscrowNoKyc // the escrow's credential is gone
+    }
+
+    /// @dev What a single account's standing is, before it is attributed to
+    ///      whichever side of the transfer that account is on.
+    enum Standing {
+        Ok,
+        Frozen,
+        NotListed,
+        NoKyc
     }
 
     IRialtoMarketView public immutable market;
@@ -71,50 +83,79 @@ contract ComplianceLens {
         (bool ok, bool isPaused) = _boolCall(r.collateral, abi.encodeWithSignature("paused()"));
         if (ok && isPaused) return (Blocker.SecurityPaused, beneficiary);
 
-        // Two different freezes, and only one of them answers `isFrozen`.
-        //
-        // On ATS v8 `setAddressFrozen(account, true)` leaves `isFrozen` reading
-        // false and removes the account from the control list instead. Measured
-        // on testnet:
-        //
-        //     before freeze   isFrozen false   isInControlList true
-        //     after  freeze   isFrozen false   isInControlList false
-        //
-        // So an address freeze surfaces below as `BeneficiaryNotListed`, which
-        // is the observable truth even though an operator would call it a
-        // freeze. `isFrozen` and `getFrozenTokens` describe the other kind: a
-        // partial freeze of part of a balance, which blocks a transfer of that
-        // portion without touching the control list.
-        bool frozen;
-        (ok, frozen) = _boolCall(r.collateral, abi.encodeWithSignature("isFrozen(address)", beneficiary));
-        if (ok && frozen) return (Blocker.BeneficiaryFrozen, beneficiary);
+        // The escrow is the *sender* of every settlement, and a permissioned
+        // security screens both sides of a transfer. Under `isWhiteList` the
+        // market has to be on the control list to hold collateral at all
+        // (§3.5), which means it can also be taken off one — and then no
+        // position settles for anyone, whatever the beneficiary's own standing
+        // is. Checking only the receiving side would report a clean bill of
+        // health for a market that cannot move a token.
+        Standing escrow = _standing(r.collateral, address(market));
+        if (escrow == Standing.Frozen) return (Blocker.EscrowFrozen, beneficiary);
+        if (escrow == Standing.NotListed) return (Blocker.EscrowNotListed, beneficiary);
+        if (escrow == Standing.NoKyc) return (Blocker.EscrowNoKyc, beneficiary);
+
+        Standing who = _standing(r.collateral, beneficiary);
+        if (who == Standing.Frozen) return (Blocker.BeneficiaryFrozen, beneficiary);
+        if (who == Standing.NotListed) return (Blocker.BeneficiaryNotListed, beneficiary);
+        if (who == Standing.NoKyc) return (Blocker.BeneficiaryNoKyc, beneficiary);
+
+        return (Blocker.None, beneficiary);
+    }
+
+    /**
+     * @notice What one account's standing on a security is.
+     *
+     * @dev Two different freezes, and only one of them answers `isFrozen`.
+     *
+     *      On ATS v8 `setAddressFrozen(account, true)` leaves `isFrozen`
+     *      reading false and removes the account from the control list instead.
+     *      Measured on testnet:
+     *
+     *          before freeze   isFrozen false   isInControlList true
+     *          after  freeze   isFrozen false   isInControlList false
+     *
+     *      So an address freeze surfaces as `NotListed`, which is the
+     *      observable truth even though an operator would call it a freeze.
+     *      `isFrozen` and `getFrozenTokens` describe the other kind: a partial
+     *      freeze of part of a balance, which blocks a transfer of that portion
+     *      without touching the control list.
+     */
+    function standingOf(address security, address account) external view returns (Standing) {
+        return _standing(security, account);
+    }
+
+    function _standing(address security, address account) private view returns (Standing) {
+        (bool ok, bool frozen) = _boolCall(security, abi.encodeWithSignature("isFrozen(address)", account));
+        if (ok && frozen) return Standing.Frozen;
 
         (bool okAmt, uint256 frozenTokens) =
-            _uintCall(r.collateral, abi.encodeWithSignature("getFrozenTokens(address)", beneficiary));
-        if (okAmt && frozenTokens > 0) return (Blocker.BeneficiaryFrozen, beneficiary);
+            _uintCall(security, abi.encodeWithSignature("getFrozenTokens(address)", account));
+        if (okAmt && frozenTokens > 0) return Standing.Frozen;
 
         bool listed;
-        (ok, listed) = _boolCall(r.collateral, abi.encodeWithSignature("isInControlList(address)", beneficiary));
+        (ok, listed) = _boolCall(security, abi.encodeWithSignature("isInControlList(address)", account));
         // A control list only blocks when the security is in whitelist mode. In
         // blacklist mode the same answer means the opposite, so the mode has to
         // be read rather than assumed.
         if (ok) {
             (bool okMode, bool whitelist) =
-                _boolCall(r.collateral, abi.encodeWithSignature("getControlListType()"));
-            if (okMode && whitelist && !listed) return (Blocker.BeneficiaryNotListed, beneficiary);
-            if (okMode && !whitelist && listed) return (Blocker.BeneficiaryNotListed, beneficiary);
+                _boolCall(security, abi.encodeWithSignature("getControlListType()"));
+            if (okMode && whitelist && !listed) return Standing.NotListed;
+            if (okMode && !whitelist && listed) return Standing.NotListed;
         }
 
-        (bool okKyc, uint256 status) = _uintCall(r.collateral, abi.encodeWithSignature("getKycStatusFor(address)", beneficiary));
+        (bool okKyc, uint256 status) =
+            _uintCall(security, abi.encodeWithSignature("getKycStatusFor(address)", account));
         // Only meaningful when the security runs internal KYC at all; a security
         // without it answers with nothing and is left alone.
         if (okKyc) {
             (bool okActive, bool active) =
-                _boolCall(r.collateral, abi.encodeWithSignature("isInternalKycActivated()"));
-            if (okActive && active && status == 0) return (Blocker.BeneficiaryNoKyc, beneficiary);
+                _boolCall(security, abi.encodeWithSignature("isInternalKycActivated()"));
+            if (okActive && active && status == 0) return Standing.NoKyc;
         }
 
-        return (Blocker.None, beneficiary);
+        return Standing.Ok;
     }
 
     /// @notice Whether settlement is expected to succeed right now.

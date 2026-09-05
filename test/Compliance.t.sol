@@ -143,8 +143,12 @@ contract ComplianceTest is Base {
         uint256 id = _openBidAward();
         assertTrue(lens.canSettle(id));
 
-        // The security runs a whitelist, and the borrower comes off it.
+        // The security runs a whitelist. Everyone who has to move a token is on
+        // it — the escrow included, which is what makes the borrower's removal
+        // the only obstacle rather than one of two.
         bond.setControlListType(true);
+        bond.setInControlList(address(market), true);
+        bond.setInControlList(alice, true);
         bond.setInControlList(borrower, false);
 
         (ComplianceLens.Blocker b,) = lens.check(id);
@@ -182,6 +186,87 @@ contract ComplianceTest is Base {
 
     function _admit(address account) internal {
         bond.grantKyc(account, "did:test:rialto", block.timestamp, block.timestamp + 365 days, issuer);
+    }
+
+    /* ═════════ the escrow has a standing of its own ═════════ */
+
+    /**
+     * The market is the sender of every settlement, and a permissioned security
+     * screens both sides. Delisting the escrow stops every position at once —
+     * and a lens that only looked at who is being paid would say nothing is
+     * wrong right up until the transfer reverts.
+     */
+    function test_aDelistedEscrowIsNamedAndNotMistakenForAHealthyDeal() public {
+        uint256 id = _openBidAward();
+        assertTrue(lens.canSettle(id));
+
+        // Whitelist mode, everyone admitted except the escrow itself.
+        bond.setControlListType(true);
+        bond.setInControlList(borrower, true);
+        bond.setInControlList(alice, true);
+        bond.setInControlList(address(market), false);
+
+        (ComplianceLens.Blocker b, address who) = lens.check(id);
+        assertEq(
+            uint8(b), uint8(ComplianceLens.Blocker.EscrowNotListed), "the escrow is named, not the borrower"
+        );
+        assertEq(who, borrower, "and the beneficiary still reads as the party due the collateral");
+
+        // Not a false alarm: the settlement really does fail.
+        vm.prank(borrower);
+        vm.expectRevert(RialtoMarket.TransferFailed.selector);
+        market.repay(id);
+        assertEq(uint8(_status(id)), uint8(Status.Funded));
+        assertEq(bond.balanceOf(address(market)), collateralAmount, "collateral untouched");
+
+        bond.setInControlList(address(market), true);
+        assertTrue(lens.canSettle(id), "and readmitting the escrow clears it");
+        vm.prank(borrower);
+        market.repay(id);
+        assertEq(uint8(_status(id)), uint8(Status.Repaid));
+    }
+
+    /// The escrow needs a credential of its own once internal KYC is on.
+    function test_anEscrowWithoutKycIsNamed() public {
+        uint256 id = _openBidAward();
+
+        bond.activateInternalKyc();
+        bond.addIssuer(issuer);
+        _admit(borrower);
+        _admit(alice);
+        // The escrow's credential is never issued.
+
+        (ComplianceLens.Blocker b,) = lens.check(id);
+        assertEq(uint8(b), uint8(ComplianceLens.Blocker.EscrowNoKyc));
+
+        _admit(address(market));
+        assertTrue(lens.canSettle(id));
+    }
+
+    /// A frozen escrow is the escrow's problem, not the beneficiary's.
+    function test_aFrozenEscrowIsNotBlamedOnTheBeneficiary() public {
+        uint256 id = _openBidAward();
+
+        bond.setAddressFrozen(address(market), true);
+
+        (ComplianceLens.Blocker b, address who) = lens.check(id);
+        assertEq(uint8(b), uint8(ComplianceLens.Blocker.EscrowFrozen));
+        assertEq(who, borrower);
+    }
+
+    /**
+     * Order matters. When both sides are blocked the escrow is reported first,
+     * because that one stops every position on the market rather than this one.
+     */
+    function test_theEscrowIsReportedBeforeTheBeneficiary() public {
+        uint256 id = _openBidAward();
+
+        bond.setControlListType(true);
+        bond.setInControlList(address(market), false);
+        bond.setInControlList(borrower, false);
+
+        (ComplianceLens.Blocker b,) = lens.check(id);
+        assertEq(uint8(b), uint8(ComplianceLens.Blocker.EscrowNotListed));
     }
 
     /* ═════════ the lens is honest about what it does not know ═════════ */
