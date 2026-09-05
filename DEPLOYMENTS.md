@@ -95,12 +95,17 @@ under a role-gated write, and anyone can check it without trusting us.
 | `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
 | `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
 | `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
+| `ComplianceLens` | [`0xec0d6b732a0fc4ad951904ba45bbaea6be727452`](https://hashscan.io/testnet/contract/0xec0d6b732a0fc4ad951904ba45bbaea6be727452) | read-only; says *why* a settlement is blocked |
 | `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
 
 ## The lifecycle, run on testnet
 
 Three parties, three separate keys: borrower `0x932a7759…`, underwriter
 `0x31f66ee3…`, and the underwriter's agent `0x0cA19581…`.
+
+These three requests ran on the **first** market, `0x246ECBb8…`, and are still
+readable there. The request numbers below are that contract's, not the current
+one's — the current market has its own, later run, listed under *Compliance*.
 
 | Request | Outcome | What it shows |
 |---|---|---|
@@ -357,6 +362,81 @@ which reads as "no scheduling here" and degrades to a manual `claim()`.
 The regression test uses `vm.mockCall` rather than `vm.etch`, because `mockCall`
 makes an address answer *without giving it code* — the exact shape of a Hedera
 system contract.
+
+## Compliance, shown not described
+
+Four controls, each exercised against a live position on the current market and
+the real RDN27 bond. The claim being tested is the same one every time: an
+issuer's control **delays** a settlement and never destroys one — the position
+holds its state, the collateral stays where it is, and the deal completes the
+moment the control is lifted.
+
+`ComplianceLens` is read separately at each step. It is a view contract, it
+takes no part in settlement, and it exists so a blocked party is told which
+permission is missing instead of reading a bare revert.
+
+### A pause stops a repayment without taking anything — request #7
+
+```
+award                          status Funded    escrow 2,100 RDN27
+pause()
+  ComplianceLens.check(7)      SecurityPaused
+  borrower repays              refused          status Funded
+                                                escrow 2,100 RDN27
+unpause()
+  ComplianceLens.check(7)      None
+  borrower repays              ok               status Repaid
+                                                escrow 0   borrower 8,400 RDN27
+```
+
+### A pause closes the primary market but not the auction — request #8
+
+```
+pause()
+  a second borrower tries to open    refused - no new collateral can be pledged
+  underwriter bids on the open one   landed, 1,015.00 dUSD
+```
+
+Bidding moves no tokens, so a paused security cannot stop it — and should not.
+The pause bites at the two points where the security actually changes hands:
+pledging it and settling against it.
+
+### An address freeze on the lender, past maturity — request #4
+
+The lender was frozen while the loan was live and the term then ran out. A
+freeze on ATS is only observable as control-list removal (§3.6c), and the lens
+names it that way rather than pretending it is `isFrozen`:
+
+```
+ComplianceLens.check(4)   BeneficiaryNotListed   beneficiary 0x31f66ee3… (the lender)
+claim                     refused                status Funded, collateral escrowed
+setAddressFrozen(false)
+ComplianceLens.check(4)   None
+claim                     ok                     status Defaulted
+```
+
+Note which party the lens names. Before maturity the beneficiary of a
+settlement is the borrower; after it, the lender. Checking the wrong one is how
+a compliance screen passes a deal it should have stopped.
+
+### A KYC credential admitting a new underwriter — request #6
+
+A genuinely new account — `0x65AE01F6…`, Hedera `0.0.10380891`, funded and
+control-listed, holding no credential — won the auction and the loan defaulted.
+
+```
+getKycStatusFor(underwriter)   0
+ComplianceLens.check(6)        BeneficiaryNoKyc
+claim                          refused      status Funded, underwriter 0 RDN27
+
+grantKyc(underwriter, "did:hedera:testnet:rialto/underwriter2", …)
+getKycStatusFor(underwriter)   1
+ComplianceLens.check(6)        None
+claim                          ok           status Defaulted, underwriter 2,100 RDN27
+```
+
+Internal KYC is switched on for the whole security, so every settlement above
+`#6` runs against a token that enforces it — including request #7's repayment.
 
 ## The document
 
