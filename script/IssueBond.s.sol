@@ -18,6 +18,7 @@ import {
     RegulationType,
     RegulationSubType
 } from "../src/interfaces/IATS.sol";
+import {Isin} from "../src/demo/Isin.sol";
 
 /**
  * Issue a real bond through the live Asset Tokenization Studio factory, attach
@@ -44,11 +45,21 @@ contract IssueBond is Script {
 
     bytes32 internal constant PROSPECTUS = bytes32("prospectus");
 
+    /// A real ISIN: twelve characters with a Luhn check digit, which ATS
+    /// verifies. `Isin.validate` runs the same rule before anything is
+    /// broadcast, because the on-chain version of this check costs a failed
+    /// seven-million-gas deployment and reports it as a bare revert.
+    string internal constant ISIN = "GB00RIALTO00";
+
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(pk);
         IATSFactory factory = IATSFactory(vm.envAddress("ATS_FACTORY"));
         address resolver = vm.envAddress("ATS_RESOLVER");
+
+        Isin.validate(ISIN);
+        _requireAliasAddress(address(factory), "ATS_FACTORY");
+        _requireAliasAddress(resolver, "ATS_RESOLVER");
 
         // The document this bond is underwritten on. In the demo the bytes live
         // at the URI; the hash is what the market freezes and what an agent
@@ -99,6 +110,28 @@ contract IssueBond is Script {
         _verify(security, operator, docHash);
     }
 
+    /**
+     * @dev A Hedera contract deployed through the EVM has an alias, and its
+     *      long-zero form is not interchangeable with it. `eth_getCode` answers
+     *      identically on both — which is exactly what makes the long-zero form
+     *      look usable — but the factory *calls into* the resolver, and that
+     *      call reverts with a bare CONTRACT_REVERT_EXECUTED and no reason.
+     *      Verified by diffing two calldatas identical but for one word:
+     *
+     *          0xba2d5fc2083a0b8f164c50e65d782087fba18e0a   deploys
+     *          0x00000000000000000000000000000000008c9142   reverts
+     *
+     *      A long-zero address has twelve leading zero bytes. Refuse it here
+     *      rather than pay for the discovery.
+     */
+    function _requireAliasAddress(address a, string memory name) internal pure {
+        require(a != address(0), string.concat(name, " is unset"));
+        require(
+            uint256(uint160(a)) >> 64 != 0,
+            string.concat(name, " is a long-zero address; use the EVM address from the ATS env example")
+        );
+    }
+
     function _deployBond(IATSFactory factory, address resolver, address operator, bool whitelist)
         internal
         returns (address)
@@ -126,10 +159,7 @@ contract IssueBond is Script {
             maxSupply: 10_000_000e18,
             resolverProxyConfiguration: ResolverProxyConfiguration({key: BOND_CONFIG, version: BOND_VERSION}),
             erc20MetadataInfo: ERC20MetadataInfo({
-                name: "Rialto Demo Senior Note 2027",
-                symbol: "RDN27",
-                isin: "GB00RIALTO00",
-                decimals: 18
+                name: "Rialto Demo Senior Note 2027", symbol: "RDN27", isin: ISIN, decimals: 18
             }),
             rbacs: rbacs,
             externalPauses: new address[](0),
