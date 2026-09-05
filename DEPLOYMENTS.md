@@ -88,8 +88,10 @@ under a role-gated write, and anyone can check it without trusting us.
 
 | Contract | Address | Note |
 |---|---|---|
-| `Mandates` | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | unchanged |
-| `RialtoMarket` | [`0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C`](https://hashscan.io/testnet/contract/0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C) | current |
+| `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | **current**, post-audit |
+| `RialtoMarket` | [`0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15`](https://hashscan.io/testnet/contract/0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15) | **current**, post-audit (`0.0.10373523`) |
+| `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
+| `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
 | `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
 | `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
 
@@ -189,14 +191,39 @@ curl -s https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10367472
 
 ```
 schedule_id        0.0.10367472
-creator            0.0.10367270      <- the market contract itself
+creator            0.0.10367270      <- the account that paid for the award tx
+payer              0.0.10367414      <- the market contract, which pays when it fires
 expiration_time    1791140001        <- one second after maturity
 wait_for_expiry    true
 executed_timestamp null               <- waiting
 deleted            false
 ```
 
-At that second, Hedera calls `claim()` on the market. Nobody has to be watching.
+`creator` is whoever sent the award transaction, not the contract — worth
+stating plainly, because it is the field that looks like it should be the
+contract and is not. The contract shows up as `payer`, which is why the market
+needs an HBAR balance at all.
+
+The claim that the network will call `claim` is better checked against the
+scheduled body itself, which is 68 bytes and decodes to exactly that:
+
+```
+contains the market address 0x39535e5f…   true
+contains claim(uint256) selector          true   (0x379607f5)
+scheduled calldata                        0x379607f5 0000…0000
+```
+
+So at that second Hedera calls `claim(0)` on the market. Nobody has to be
+watching.
+
+Repaying releases it. Verified on the schedule the audited market created and
+then cancelled:
+
+```
+schedule_id  0.0.10373549
+deleted      true
+executed_timestamp null
+```
 
 ### The bug that made the first market unable to do this
 
