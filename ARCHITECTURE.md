@@ -608,6 +608,80 @@ moment it has code.
 
 ---
 
+### 3.8 Internal KYC on ATS is a credential, not a flag
+
+`grantKyc(address)` **does not exist** on a deployed security. Asking for it
+gets the diamond's dispatcher error rather than a revert from any facet:
+
+```
+grantKyc(address)                   FunctionNotFound(0xbef49813)
+grantKyc(address,bytes32,uint256,uint256,address)  FunctionNotFound
+grantKyc(address,string,uint256,uint256,address)   present
+```
+
+The signature that is actually there is the SSI one —
+`grantKyc(account, vcId, validFrom, validTo, issuer)` — and it carries the
+consequences of that model:
+
+* the credential is issued **by** someone. `issuer` must already be registered
+  through `addIssuer`, or the call reverts `AccountIsNotIssuer(issuer)`.
+* the credential has a validity window, so KYC expires on its own.
+* `getKycStatusFor` answers `0` for *never granted* and *revoked* alike, which
+  is why `ComplianceLens` reports `BeneficiaryNoKyc` for both — the difference
+  matters to a compliance officer, not to a transfer.
+
+Two roles gate all of this, and **neither is in the roles file transcribed in
+`IATS.sol`**. They were read off the `AccountHasNoRole(address,bytes32)` revert
+that the security itself returns, which is the only source that cannot be stale:
+
+```
+activateInternalKyc()  needs 0xdd78fdcd1b38a5360405cef8d91e758ad0f42bf2ced681b803b3c2704b0a32a7
+addIssuer(address)     needs 0x3120494a82251fe85b0403877539486dbfcf0f94c20741a3229cfad31f625ee1
+```
+
+Holding `DEFAULT_ADMIN` is enough to grant both to yourself, so an issuer is
+never locked out — but an issuer who assumes the `KYC` role from `roles.sol` is
+sufficient will find that it lets them *revoke* a credential and not issue one.
+
+Measured end to end on the live RDN27 bond, against an underwriter who was on
+the control list and had no credential (request 6):
+
+```
+                              before grant     after grant
+getKycStatusFor(underwriter)       0                1
+ComplianceLens.check(6)      BeneficiaryNoKyc     None
+claim(6)                        refused             ok
+underwriter's RDN27               0.00           2100.00
+```
+
+The position stayed `Funded` across the refusal. Nothing was seized, nothing was
+stranded, and the loan settled the moment the credential existed — which is the
+whole point: compliance delays a settlement, it does not destroy one.
+
+### 3.9 A fresh EVM account cannot be funded over JSON-RPC
+
+Sending HBAR to an EVM address that has never been used fails through the relay:
+
+```
+eth_sendRawTransaction  to: 0x65AE…14cA  value: 6 HBAR  gas: 400000
+receipt status 0
+```
+
+Hedera creates the account lazily from the *alias*, and that path is a
+`TransferTransaction` on the native API, not an EVM value transfer. The same
+transfer through the SDK succeeds and returns the new account id:
+
+```
+TransferTransaction -> AccountId.fromEvmAddress(0,0,0x65AE…14cA)
+SUCCESS   account 0.0.10380891   balance 6 HBAR
+```
+
+Only account *creation* needs this. Once the account exists, every later call
+from that key goes through the relay normally. It is worth knowing before a
+demo, because the failure is a plain `status 0` with no reason attached.
+
+---
+
 ## 4. System architecture
 
 ```
