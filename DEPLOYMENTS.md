@@ -89,7 +89,8 @@ under a role-gated write, and anyone can check it without trusting us.
 | Contract | Address | Note |
 |---|---|---|
 | `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | **current**, post-audit |
-| `RialtoMarket` | [`0xC7C915740e670f85743304019302D8760F857a0a`](https://hashscan.io/testnet/contract/0xC7C915740e670f85743304019302D8760F857a0a) | **current** (`0.0.10377546`) |
+| `RialtoMarket` | [`0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686`](https://hashscan.io/testnet/contract/0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686) | **current** (`0.0.10378973`), with coupon pass-through |
+| `RialtoMarket` (no coupons) | `0xC7C915740e670f85743304019302D8760F857a0a` | superseded |
 | `RialtoMarket` (audited, wrong schedule margin) | `0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15` | superseded |
 | `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
 | `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
@@ -119,6 +120,75 @@ repayAmount  100,493.150685 dUSD
 rateBps      600           the mandate floor, computed identically off-chain
 reasoningRef 0xed0b2a16e115fc7a…
 ```
+
+## The manufactured payment, proven end to end
+
+A coupon belongs to whoever holds the security on its record date. While a loan
+is live that is the escrow — so the borrower, who still owns the bond and gets
+it back on repayment, is credited with nothing by the security itself.
+
+### The bug, on a real ATS coupon
+
+`ROLE_CORPORATE_ACTION` granted, a real coupon set on the live RDN27 bond with a
+record date inside a live loan, 10,500 pledged and 4,200 held directly:
+
+```
+escrow (RialtoMarket)   tokenBalance 10,500.00   payable 143.785674
+borrower                tokenBalance  4,200.00   payable  57.514269
+```
+
+The coupon on the borrower's own bond accrued to a contract with no way to
+spend it.
+
+### The correction, performed by the network
+
+Coupon `#4`, record date `1788617561`, inside a loan running
+`1788617392 → 1788619192`. `scheduleCoupon` booked it; nobody touched it after
+that.
+
+```
+schedule 0.0.10379023   executed_timestamp 1788617621.148907690
+
+manufacturedOwed(0)   143.818968 dUSD     <- established by the network
+couponRecorded(0,4)   true
+repaymentDue(0)       9,856.215278 dUSD   <- 10,000.034246 - 143.818968
+```
+
+### Netted at repayment, to the unit
+
+```
+                  before            after           delta
+lender      864,542.465754   874,398.681032   +9,856.215278
+borrower    140,457.534246   130,601.318968   -9,856.215278
+escrow RDN27      10,500.00             0.00
+
+agreed repayment   10,000.034246
+coupon netted         143.818968
+expected            9,856.215278   exact match
+```
+
+Status `Repaid`, collateral home, `manufacturedOwed` back to zero. The lender
+simply received less, which is how repo settles a manufactured payment and why
+the obligation needs no enforcement anywhere.
+
+## One scheduled call per transaction
+
+`NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION`.
+
+Hedera permits at most one scheduled call per transaction. An `award` that books
+its own settlement *and* a coupon record date is rejected outright — so a coupon
+falling inside the term would have stopped anyone borrowing against that bond at
+all. Found when an award that had worked all day started reverting the moment a
+coupon landed in the window.
+
+Confirmed with the cheapest possible experiment rather than by reading: once the
+coupon's record date had passed, `award` skipped it, attempted one schedule
+instead of two, and simulated clean.
+
+So `award` books the settlement, which is the one that must not be forgotten,
+and `scheduleCoupon` books a record date in a separate transaction that anyone
+may send. `recordCoupon` stays permissionless either way, so a coupon nobody
+books is still claimable by hand.
 
 ## Settlement the network performed, unattended
 
