@@ -59,15 +59,78 @@ export function isBlockedHost(hostname: string): boolean {
   // fc00::/7 unique-local, fe80::/10 link-local
   if (/^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) return true;
 
-  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 0 || a === 127 || a === 10) return true;
-    if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a >= 224) return true; // multicast and reserved
+  // An IPv4 address wearing an IPv6 coat. `::ffff:127.0.0.1` and
+  // `::ffff:7f00:1` are the same address as `127.0.0.1`, and a resolver treats
+  // them that way, so they have to be unwrapped before they are judged.
+  const mapped = h.match(/^::ffff:(.+)$/);
+  if (mapped) {
+    const inner = mapped[1];
+    const hexPair = inner.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    const asV4 = hexPair
+      ? ((parseInt(hexPair[1], 16) << 16) | parseInt(hexPair[2], 16)) >>> 0
+      : toIPv4(inner);
+    if (asV4 !== null && isPrivateIPv4(asV4)) return true;
   }
+
+  const v4 = toIPv4(h);
+  if (v4 !== null && isPrivateIPv4(v4)) return true;
+
+  return false;
+}
+
+/**
+ * Parse every spelling of an IPv4 address a resolver accepts, not just the
+ * dotted-quad one.
+ *
+ * `127.0.0.1`, `127.1`, `2130706433` and `0x7f000001` are the same host, and
+ * `getaddrinfo` will happily connect to all four. A check that only recognises
+ * the first is not a check — it is a speed bump with a documented bypass, and
+ * the bypass is the whole attack: the counterparty picks the URI.
+ *
+ * Returns the address as a 32-bit number, or null when the string is not an
+ * IPv4 literal in any form (an ordinary hostname, for instance).
+ */
+function toIPv4(host: string): number | null {
+  const parts = host.split(".");
+  if (parts.length === 0 || parts.length > 4) return null;
+
+  const nums: number[] = [];
+  for (const p of parts) {
+    let v: number;
+    if (/^0[xX][0-9a-fA-F]+$/.test(p)) v = parseInt(p, 16);
+    else if (/^0[0-7]+$/.test(p)) v = parseInt(p, 8);
+    else if (/^(0|[1-9][0-9]*)$/.test(p)) v = parseInt(p, 10);
+    else return null;
+    if (!Number.isSafeInteger(v) || v < 0) return null;
+    nums.push(v);
+  }
+
+  // The final part absorbs whatever octets were left unwritten: in `127.1` the
+  // 1 is the low three bytes, not the second octet.
+  const last = nums.pop();
+  if (last === undefined) return null;
+  if (nums.some((n) => n > 0xff)) return null;
+  if (last >= 2 ** (8 * (4 - nums.length))) return null;
+
+  let addr = last;
+  for (let i = 0; i < nums.length; i++) addr += nums[i] * 2 ** (8 * (3 - i));
+  return addr >>> 0;
+}
+
+/** The ranges an agent must never be made to reach out to. */
+function isPrivateIPv4(addr: number): boolean {
+  const a = (addr >>> 24) & 0xff;
+  const b = (addr >>> 16) & 0xff;
+
+  if (a === 0) return true; // 0.0.0.0/8, "this network"
+  if (a === 10) return true; // private
+  if (a === 127) return true; // loopback
+  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  if (a === 192 && b === 168) return true; // private
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  if (a >= 224) return true; // multicast, reserved, broadcast
   return false;
 }
 
