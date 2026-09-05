@@ -46,7 +46,7 @@ contract MockERC20 {
         return true;
     }
 
-    function _move(address from, address to, uint256 amount) internal {
+    function _move(address from, address to, uint256 amount) internal virtual {
         require(balanceOf[from] >= amount, "balance");
         uint256 fee = (amount * feeBps) / 10_000;
         balanceOf[from] -= amount;
@@ -117,6 +117,98 @@ contract MockSecurity is MockERC20 {
 
     function getAllDocuments() external view returns (bytes32[] memory) {
         return _names;
+    }
+
+    /* ─────────────────────────── compliance ─────────────────────────── */
+
+    /**
+     * Pause, freeze and KYC, enforced on transfer rather than merely reported.
+     *
+     * A mock that answers `paused() == true` while still moving tokens would
+     * make every compliance test pass for the wrong reason. These block the
+     * transfer, so the market really does see the failure a regulated security
+     * would hand it.
+     */
+    bool public paused;
+    bool public internalKycActivated;
+    /// true = whitelist (must be listed), false = blacklist (must not be).
+    /// Defaults to blacklist with an empty list, so nothing is blocked until a
+    /// test says otherwise.
+    bool public controlListType;
+    mapping(address => bool) public inControlList;
+    mapping(address => bool) public isFrozen;
+    mapping(address => uint256) public kycStatus; // 0 = none, 1 = granted
+
+    error TransferBlocked();
+
+    function pause() external {
+        paused = true;
+    }
+
+    function unpause() external {
+        paused = false;
+    }
+
+    function setAddressFrozen(address account, bool frozen) external {
+        isFrozen[account] = frozen;
+    }
+
+    function setControlListType(bool whitelist) external {
+        controlListType = whitelist;
+    }
+
+    function getControlListType() external view returns (bool) {
+        return controlListType;
+    }
+
+    function setInControlList(address account, bool listed) external {
+        inControlList[account] = listed;
+    }
+
+    function addToControlList(address account) external returns (bool) {
+        inControlList[account] = true;
+        return true;
+    }
+
+    function isInControlList(address account) external view returns (bool) {
+        return inControlList[account];
+    }
+
+    function activateInternalKyc() external {
+        internalKycActivated = true;
+    }
+
+    function isInternalKycActivated() external view returns (bool) {
+        return internalKycActivated;
+    }
+
+    function grantKyc(address account) external {
+        kycStatus[account] = 1;
+    }
+
+    function revokeKyc(address account) external {
+        kycStatus[account] = 0;
+    }
+
+    function getKycStatusFor(address account) external view returns (uint256) {
+        return kycStatus[account];
+    }
+
+    function _move(address from, address to, uint256 amount) internal override {
+        _compliance(from, to);
+        super._move(from, to, amount);
+    }
+
+    /// @dev Applied to both sides of every transfer, as a real security does.
+    function _compliance(address from, address to) internal view {
+        if (paused) revert TransferBlocked();
+        if (isFrozen[from] || isFrozen[to]) revert TransferBlocked();
+        if (internalKycActivated && (kycStatus[from] == 0 || kycStatus[to] == 0)) revert TransferBlocked();
+        if (controlListType) {
+            if (!inControlList[from] || !inControlList[to]) revert TransferBlocked();
+        } else {
+            if (inControlList[from] || inControlList[to]) revert TransferBlocked();
+        }
     }
 
     /* ─────────────────────────── coupons ─────────────────────────── */
