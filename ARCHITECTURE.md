@@ -544,6 +544,30 @@ that. The fee is the tell: a cheap revert means a failed check, not an
 exhausted budget. Two hypotheses were tested and discarded before the probe
 settled it, and both would have been avoided by measuring first.
 
+### 3.6c An ATS address freeze does not answer `isFrozen`
+
+`setAddressFrozen(account, true)` leaves `isFrozen(account)` reading **false**
+and removes the account from the control list instead. Measured on testnet
+against the live RDN27 bond:
+
+```
+                            before freeze    after freeze
+isFrozen(borrower)              false            false
+isInControlList(borrower)       true             false
+```
+
+So an address-level freeze is observable only as control-list removal, and any
+tool that checks `isFrozen` to decide whether an account can receive will report
+that a frozen account is fine.
+
+`isFrozen` and `getFrozenTokens` describe a different thing: a *partial* freeze
+of part of a balance, which blocks a transfer of that portion without touching
+the control list. Both are worth checking, and they mean different things.
+
+`ComplianceLens` checks all three and is explicit about which is which, because
+"not listed" and "frozen" are the same event to a user and different reads to a
+contract.
+
 ### 3.7 Cash token — corrected
 
 The original plan named testnet USDC (`0.0.429274`, HTS `FUNGIBLE_COMMON`,

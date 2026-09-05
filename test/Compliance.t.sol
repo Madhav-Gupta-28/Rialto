@@ -106,6 +106,38 @@ contract ComplianceTest is Base {
 
     /* ═════════ delisting and KYC ═════════ */
 
+    /**
+     * An address freeze on ATS does not answer `isFrozen`.
+     *
+     * `setAddressFrozen(account, true)` leaves `isFrozen` false and removes the
+     * account from the control list instead — measured on testnet. So the lens
+     * reports it as not listed, which is the observable truth. Recorded here so
+     * the label is not mistaken for a bug later.
+     */
+    function test_anAddressFreezeSurfacesAsDelisting() public {
+        uint256 id = _openBidAward();
+        bond.setControlListType(true);
+        bond.setInControlList(borrower, true);
+        bond.setInControlList(address(market), true);
+        bond.setInControlList(alice, true);
+        assertTrue(lens.canSettle(id));
+
+        // What ATS actually does when an address is frozen.
+        bond.setInControlList(borrower, false);
+
+        (ComplianceLens.Blocker b,) = lens.check(id);
+        assertEq(uint8(b), uint8(ComplianceLens.Blocker.BeneficiaryNotListed));
+    }
+
+    /// A partial token freeze is the other kind, and it does answer.
+    function test_aPartialTokenFreezeIsNamedAsAFreeze() public {
+        uint256 id = _openBidAward();
+        bond.setFrozenTokens(borrower, 1);
+
+        (ComplianceLens.Blocker b,) = lens.check(id);
+        assertEq(uint8(b), uint8(ComplianceLens.Blocker.BeneficiaryFrozen));
+    }
+
     function test_aDelistedBeneficiaryIsNamed() public {
         uint256 id = _openBidAward();
         assertTrue(lens.canSettle(id));

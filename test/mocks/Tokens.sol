@@ -153,6 +153,12 @@ contract MockSecurity is MockERC20 {
         isFrozen[account] = frozen;
     }
 
+    mapping(address => uint256) public getFrozenTokens;
+
+    function setFrozenTokens(address account, uint256 amount) external {
+        getFrozenTokens[account] = amount;
+    }
+
     function setControlListType(bool whitelist) external {
         controlListType = whitelist;
     }

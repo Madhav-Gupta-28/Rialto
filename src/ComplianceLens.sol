@@ -39,8 +39,8 @@ contract ComplianceLens {
         None, // settlement should go through
         NotFunded, // nothing to settle
         SecurityPaused, // the whole security is halted
-        BeneficiaryFrozen, // the account due the collateral cannot receive
-        BeneficiaryNotListed, // not on the control list
+        BeneficiaryFrozen, // tokens frozen on the account
+        BeneficiaryNotListed, // frozen at address level, or never admitted
         BeneficiaryNoKyc, // KYC revoked or never granted
         Unreadable // the security did not answer a compliance query
     }
@@ -71,8 +71,27 @@ contract ComplianceLens {
         (bool ok, bool isPaused) = _boolCall(r.collateral, abi.encodeWithSignature("paused()"));
         if (ok && isPaused) return (Blocker.SecurityPaused, beneficiary);
 
-        (ok, isPaused) = _boolCall(r.collateral, abi.encodeWithSignature("isFrozen(address)", beneficiary));
-        if (ok && isPaused) return (Blocker.BeneficiaryFrozen, beneficiary);
+        // Two different freezes, and only one of them answers `isFrozen`.
+        //
+        // On ATS v8 `setAddressFrozen(account, true)` leaves `isFrozen` reading
+        // false and removes the account from the control list instead. Measured
+        // on testnet:
+        //
+        //     before freeze   isFrozen false   isInControlList true
+        //     after  freeze   isFrozen false   isInControlList false
+        //
+        // So an address freeze surfaces below as `BeneficiaryNotListed`, which
+        // is the observable truth even though an operator would call it a
+        // freeze. `isFrozen` and `getFrozenTokens` describe the other kind: a
+        // partial freeze of part of a balance, which blocks a transfer of that
+        // portion without touching the control list.
+        bool frozen;
+        (ok, frozen) = _boolCall(r.collateral, abi.encodeWithSignature("isFrozen(address)", beneficiary));
+        if (ok && frozen) return (Blocker.BeneficiaryFrozen, beneficiary);
+
+        (bool okAmt, uint256 frozenTokens) =
+            _uintCall(r.collateral, abi.encodeWithSignature("getFrozenTokens(address)", beneficiary));
+        if (okAmt && frozenTokens > 0) return (Blocker.BeneficiaryFrozen, beneficiary);
 
         bool listed;
         (ok, listed) = _boolCall(r.collateral, abi.encodeWithSignature("isInControlList(address)", beneficiary));
