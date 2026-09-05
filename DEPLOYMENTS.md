@@ -99,6 +99,29 @@ under a role-gated write, and anyone can check it without trusting us.
 | `ComplianceLens` (first) | `0xec0d6b732a0fc4ad951904ba45bbaea6be727452` | superseded — never checked the escrow's own standing |
 | `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
 
+All four are **verified**, and readable as source on HashScan:
+
+```
+RialtoMarket    0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686   match
+Mandates        0xb4F8cB274387A5190CeF7582004558809f8547a4   match
+ComplianceLens  0xE4f8b3d806914FC9E782e280E8de6a0F0F9B6470   match
+DemoCash        0x55e9baf7dcfe0e2a4e51e1bdebb4e20d6247e365   match
+```
+
+Verification goes through Sourcify. Hedera's own instance at
+`server-verify.hashscan.io` now 308-redirects to `sourcify.dev/server`, and that
+redirect drops the path — so a request to the old host answers `Cannot GET /`
+rather than failing usefully, which reads like the contract is unverified when
+the endpoint has simply moved. Chain 296 is supported there:
+
+```bash
+forge verify-contract <address> src/RialtoMarket.sol:RialtoMarket \
+  --chain-id 296 --verifier sourcify \
+  --verifier-url https://sourcify.dev/server --compiler-version 0.8.24
+
+curl -sL https://sourcify.dev/server/v2/contract/296/<address>
+```
+
 ## The lifecycle, run on testnet
 
 Three parties, three separate keys: borrower `0x932a7759…`, underwriter
