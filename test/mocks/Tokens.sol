@@ -138,8 +138,19 @@ contract MockSecurity is MockERC20 {
     mapping(address => bool) public inControlList;
     mapping(address => bool) public isFrozen;
     mapping(address => uint256) public kycStatus; // 0 = none, 1 = granted
+    mapping(address => bool) public isIssuer;
+
+    struct Credential {
+        string vcId;
+        uint256 validFrom;
+        uint256 validTo;
+        address issuer;
+    }
+
+    mapping(address => Credential) public kycOf;
 
     error TransferBlocked();
+    error AccountIsNotIssuer(address issuer);
 
     function pause() external {
         paused = true;
@@ -188,12 +199,39 @@ contract MockSecurity is MockERC20 {
         return internalKycActivated;
     }
 
-    function grantKyc(address account) external {
-        kycStatus[account] = 1;
+    function addIssuer(address issuer) external {
+        isIssuer[issuer] = true;
     }
 
-    function revokeKyc(address account) external {
+    /**
+     * @dev This is the signature ATS actually exposes. There is no
+     *      `grantKyc(address)` on a deployed security — asking for one gets
+     *      `FunctionNotFound` from the diamond (§3.8) — so a mock offering the
+     *      short form would let every KYC test pass against a shape the chain
+     *      rejects.
+     *
+     *      The issuer check is modelled because it was measured: an
+     *      unregistered issuer reverts `AccountIsNotIssuer`. The validity
+     *      window is stored and deliberately not enforced, because what a real
+     *      security answers for a lapsed credential has not been measured, and
+     *      guessing it here would be the same mistake in a smaller place.
+     */
+    function grantKyc(
+        address account,
+        string calldata vcId,
+        uint256 validFrom,
+        uint256 validTo,
+        address issuer
+    ) external returns (bool) {
+        if (!isIssuer[issuer]) revert AccountIsNotIssuer(issuer);
+        kycOf[account] = Credential({vcId: vcId, validFrom: validFrom, validTo: validTo, issuer: issuer});
+        kycStatus[account] = 1;
+        return true;
+    }
+
+    function revokeKyc(address account) external returns (bool) {
         kycStatus[account] = 0;
+        return true;
     }
 
     function getKycStatusFor(address account) external view returns (uint256) {

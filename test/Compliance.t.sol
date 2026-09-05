@@ -17,6 +17,7 @@ import {Status} from "../src/RialtoTypes.sol";
  */
 contract ComplianceTest is Base {
     ComplianceLens internal lens;
+    address internal issuer = makeAddr("issuer"); // whoever attests the credentials
 
     function setUp() public override {
         super.setUp();
@@ -154,15 +155,33 @@ contract ComplianceTest is Base {
         uint256 id = _openBidAward();
 
         bond.activateInternalKyc();
-        bond.grantKyc(address(market));
-        bond.grantKyc(alice);
+        bond.addIssuer(issuer);
+        _admit(address(market));
+        _admit(alice);
         // The borrower's KYC is never granted.
 
         (ComplianceLens.Blocker b,) = lens.check(id);
         assertEq(uint8(b), uint8(ComplianceLens.Blocker.BeneficiaryNoKyc));
 
-        bond.grantKyc(borrower);
+        _admit(borrower);
         assertTrue(lens.canSettle(id), "and granting it clears the way");
+    }
+
+    /// A credential is issued by someone. An unregistered issuer cannot mint one,
+    /// which is the difference between KYC as a flag and KYC as an attestation.
+    function test_anUnregisteredIssuerCannotGrantKyc() public {
+        bond.activateInternalKyc();
+
+        vm.expectRevert(abi.encodeWithSignature("AccountIsNotIssuer(address)", issuer));
+        _admit(borrower);
+
+        bond.addIssuer(issuer);
+        _admit(borrower);
+        assertEq(bond.getKycStatusFor(borrower), 1);
+    }
+
+    function _admit(address account) internal {
+        bond.grantKyc(account, "did:test:rialto", block.timestamp, block.timestamp + 365 days, issuer);
     }
 
     /* ═════════ the lens is honest about what it does not know ═════════ */
@@ -178,9 +197,8 @@ contract ComplianceTest is Base {
         cash.approve(address(market), type(uint256).max);
 
         vm.prank(borrower);
-        uint256 id = market.open(
-            address(cash), 1_000e6, address(bond), 100e18, TERM, WINDOW, PROSPECTUS, bytes32(0)
-        );
+        uint256 id =
+            market.open(address(cash), 1_000e6, address(bond), 100e18, TERM, WINDOW, PROSPECTUS, bytes32(0));
         assertEq(uint8(_status(id)), uint8(Status.Open));
 
         (ComplianceLens.Blocker b,) = lens.check(id);

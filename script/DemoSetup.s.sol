@@ -24,6 +24,22 @@ contract DemoSetup is Script {
     uint256 constant CASH_TO_UNDERWRITER = 1_000_000e6;
     uint256 constant GAS_ALLOWANCE = 8 ether; // HBAR for each party's own transactions
 
+    /**
+     * @dev A value transfer only reaches an account that already exists. Hedera
+     *      creates an account from its alias through a native
+     *      TransferTransaction, not through the EVM, so sending HBAR to a key
+     *      that has never been used fails with a bare status 0 and no reason
+     *      (ARCHITECTURE.md §3.9) — and it fails here, four transactions into a
+     *      broadcast, where it looks like the demo is broken. Refuse instead,
+     *      and say what to run.
+     */
+    function _topUp(address party) internal {
+        require(
+            party.balance > 0, "key has no Hedera account: node agent/scripts/fund-account.mjs <address> 1"
+        );
+        payable(party).transfer(GAS_ALLOWANCE);
+    }
+
     function run() external {
         uint256 operatorPk = vm.envUint("PRIVATE_KEY");
         uint256 borrowerPk = vm.envUint("BORROWER_KEY");
@@ -57,9 +73,9 @@ contract DemoSetup is Script {
         cash.mint(underwriter, CASH_TO_UNDERWRITER);
 
         // Each party pays for its own transactions, as it would in reality.
-        payable(borrower).transfer(GAS_ALLOWANCE);
-        payable(underwriter).transfer(GAS_ALLOWANCE);
-        payable(agent).transfer(GAS_ALLOWANCE);
+        _topUp(borrower);
+        _topUp(underwriter);
+        _topUp(agent);
 
         vm.stopBroadcast();
 
@@ -67,11 +83,7 @@ contract DemoSetup is Script {
         vm.startBroadcast(underwriterPk);
 
         mandates.setMandate({
-            agent: agent,
-            maxPerDeal: 500_000e6,
-            maxTotal: 1_000_000e6,
-            minRateBps: 500,
-            maxTerm: 60 days
+            agent: agent, maxPerDeal: 500_000e6, maxTotal: 1_000_000e6, minRateBps: 500, maxTerm: 60 days
         });
         mandates.allowAsset(address(bond), true);
 
