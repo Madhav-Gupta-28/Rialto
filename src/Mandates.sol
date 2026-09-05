@@ -78,8 +78,16 @@ contract Mandates {
 
         // Releasing the previous key must happen after the new one is claimed,
         // so that re-setting the same agent does not delete its own binding.
+        //
+        // The ownership check is not redundant. A revoked mandate keeps its old
+        // agent recorded, and revoking frees that key for anyone else to adopt.
+        // Without this, an owner who revoked and then set a new agent would
+        // delete whatever binding the key had acquired in the meantime — one
+        // account silently disabling another account's agent.
         address prev = _mandates[msg.sender].agent;
-        if (prev != address(0) && prev != agent) delete _ownerOfAgent[prev];
+        if (prev != address(0) && prev != agent && _ownerOfAgent[prev] == msg.sender) {
+            delete _ownerOfAgent[prev];
+        }
 
         _mandates[msg.sender] = Mandate({
             agent: agent,

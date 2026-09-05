@@ -211,4 +211,25 @@ contract MandatesTest is Test {
         mandates.setMandate(address(0), 1, 1, 1, 1 days);
         assertFalse(mandates.mandateOf(alice).active, "alice's mandate is untouched by anyone else");
     }
+
+    /**
+     * One owner must not be able to unbind another owner's agent.
+     *
+     * After revoking, the revoker's mandate still records its old agent. If
+     * somebody else has since adopted that key, the stale value would be enough
+     * to delete their binding on the next setMandate — so the release is
+     * conditional on still owning it.
+     */
+    function test_staleAgentPointerCannotUnbindAnotherOwner() public {
+        _set(alice, agentA);
+        vm.prank(alice);
+        mandates.revoke();
+
+        _set(bob, agentA);
+        assertEq(mandates.ownerOfAgent(agentA), bob, "bob has adopted the freed key");
+
+        _set(alice, agentB);
+
+        assertEq(mandates.ownerOfAgent(agentA), bob, "alice must not be able to unbind bob's agent");
+    }
 }
