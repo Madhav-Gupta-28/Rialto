@@ -10,6 +10,9 @@ export const hederaTestnet = defineChain({
 
 /** Deployed by script/Deploy.s.sol. See DEPLOYMENTS.md. */
 export const MARKET = "0x59d8b1e3d3e8691De6e6a5012fA90C09BA987686" as const;
+
+/** Read-only. Names why a settlement is blocked instead of reverting at one. */
+export const LENS = "0xE4f8b3d806914FC9E782e280E8de6a0F0F9B6470" as const;
 export const MANDATES = "0xb4F8cB274387A5190CeF7582004558809f8547a4" as const;
 
 /** The demo instrument: a bond issued through the live ATS factory. */

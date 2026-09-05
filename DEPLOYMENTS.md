@@ -463,6 +463,29 @@ The first lens reported a clean bill of health for a position that could not
 move a token. It only ever asked about the party being paid, which is the
 easier half of a question with two halves.
 
+### The agent asks before it bids — request #10
+
+An underwriter bids on collateral it expects to take if the loan defaults. If
+the security would refuse that delivery, the recovery leg does not exist and the
+bid prices a secured loan while owning an unsecured one. The agent now asks the
+lens for its own standing before it reasons about anything, on the same request,
+minutes apart:
+
+```
+underwriter off the control list
+  #10 declined — 0x31f66ee3… cannot receive 0x52Ea050F… on default (NotListed)
+
+underwriter readmitted
+  #10 document verified against the hash frozen at open (0xbcef65bc…)
+  #10 reasoning published — ref 0x00e80585… seq 8
+  #10 bid 1000001142 at 600bps — 0xc15dde29…
+```
+
+It declines before fetching the document and before publishing anything, so a
+position it cannot recover costs no HCS message and no fee. With no
+`LENS_ADDRESS` configured the check is skipped and reported as skipped — unknown
+is not treated as clear.
+
 ## The document
 
 Published, so the claim is checkable by anyone rather than only by us.

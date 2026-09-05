@@ -117,6 +117,16 @@ input.text:focus, select.text:focus { outline: none; border-color: var(--brass-d
 .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
 
 .note { font-size: 13px; color: var(--ink-2); border-left: 2px solid var(--brass-dim); padding-left: 12px; }
+
+/* A compliance obstacle. Warn, not error: nothing has gone wrong and nothing is
+   lost — the settlement is waiting on a permission the issuer controls. */
+.blocked {
+  border-left: 2px solid var(--warn);
+  padding: 2px 0 2px 12px;
+}
+.blocked-title { font-size: 13px; color: var(--warn); margin: 0 0 4px; }
+.blocked-detail { font-size: 13px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+.note .blocked-title { color: var(--muted); }
 .err { color: var(--bad); font-size: 13px; font-family: var(--mono); word-break: break-all; }
 .ok { color: var(--good); }
 

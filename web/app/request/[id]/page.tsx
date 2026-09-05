@@ -7,7 +7,8 @@ import { useWrite } from "@/lib/useWrite";
 import { amount } from "@/lib/amount";
 import { maxUint256, type Hex } from "viem";
 import { marketAbi, securityAbi } from "@/lib/abi";
-import { MARKET, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
+import { lensAbi, explain, type Obstacle } from "@/lib/lens";
+import { MARKET, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
 import { units, duration, bps, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
@@ -26,6 +27,14 @@ export default function RequestPage() {
   });
   const { data: schedule } = useReadContract({
     address: MARKET, abi: marketAbi, functionName: "settlementSchedule", args: [id],
+  });
+
+  // Asked before anyone presses anything. A permissioned security can be paused
+  // or an account delisted between one block and the next, and the alternative
+  // to asking is letting the user discover it as a bare revert.
+  const { data: lens } = useReadContract({
+    address: LENS, abi: lensAbi, functionName: "check", args: [id],
+    query: { refetchInterval: 15_000 },
   });
 
   // Keep the page's shape while the chain answers, so the layout does not jump
@@ -54,6 +63,10 @@ export default function RequestPage() {
   const isBorrower = !!address && address.toLowerCase() === r.borrower.toLowerCase();
   const hasBid = (best?.[0] ?? ZERO) !== ZERO;
   const reasoningRef = best?.[3];
+
+  const obstacle = lens
+    ? explain({ blocker: Number(lens[0]), beneficiary: lens[1], viewer: address, matured })
+    : null;
 
   return (
     <>
@@ -150,6 +163,7 @@ export default function RequestPage() {
 
               <Actions
                 id={id}
+                obstacle={obstacle}
                 principal={r.principal}
                 term={r.term}
                 biddingOpen={biddingOpen}
@@ -195,6 +209,7 @@ function rateOf(principal: bigint, repay: bigint, term: bigint): number {
  */
 function Actions(props: {
   id: bigint;
+  obstacle: Obstacle | null;
   principal: bigint;
   term: bigint;
   biddingOpen: boolean;
@@ -222,6 +237,11 @@ function Actions(props: {
   });
 
   const needsApproval = (allowance ?? 0n) < props.principal;
+
+  // A blocked settlement is refused by the security, not by the market, so the
+  // button is disabled rather than hidden: the action is still the right one,
+  // it just cannot land yet.
+  const blocked = props.obstacle?.blocking === true;
   const send = (fn: "award" | "repay" | "claim" | "cancel" | "releaseBid") =>
     write({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
 
@@ -334,9 +354,16 @@ function Actions(props: {
         </p>
       )}
 
+      {props.obstacle && (props.funded || props.matured) && (
+        <div className={props.obstacle.blocking ? "blocked" : "note"} style={{ marginBottom: 14 }}>
+          <p className="blocked-title">{props.obstacle.title}</p>
+          <p className="blocked-detail">{props.obstacle.detail}</p>
+        </div>
+      )}
+
       {props.funded && !props.matured && props.isBorrower && (
-        <button className="btn" disabled={isPending} onClick={() => send("repay")}>
-          Repay and take the collateral back
+        <button className="btn" disabled={isPending || blocked} onClick={() => send("repay")}>
+          {blocked ? "Repayment is blocked" : "Repay and take the collateral back"}
         </button>
       )}
 
@@ -346,8 +373,8 @@ function Actions(props: {
 
       {props.matured && (
         <>
-          <button className="btn" disabled={isPending} onClick={() => send("claim")}>
-            Claim the collateral for the lender
+          <button className="btn" disabled={isPending || blocked} onClick={() => send("claim")}>
+            {blocked ? "Claim is blocked" : "Claim the collateral for the lender"}
           </button>
           <p className="hint">
             Pays the lender recorded in storage, never the caller — which is why it is safe to hand to the
