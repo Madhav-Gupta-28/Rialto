@@ -141,6 +141,13 @@ export async function bestBid(c: Chain, id: bigint): Promise<{underwriter: Hex; 
   return { underwriter: r[0], repayAmount: r[2] };
 }
 
+/**
+ * Submit the bid and confirm it actually landed.
+ *
+ * Waiting for a receipt is not the same as checking it. A reverted transaction
+ * still produces one, so without the status check the agent would report a bid
+ * it never placed — and it would have already published reasoning for it.
+ */
 export async function submitBid(c: Chain, id: bigint, repayAmount: bigint, reasoningRef: Hex): Promise<Hex> {
   const hash = await c.wallet.writeContract({
     address: config.market,
@@ -150,6 +157,14 @@ export async function submitBid(c: Chain, id: bigint, repayAmount: bigint, reaso
     account: c.account,
     chain: hederaTestnet,
   });
-  await c.pub.waitForTransactionReceipt({ hash });
+
+  const receipt = await c.pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error(`bid reverted on chain: ${hash}`);
   return hash;
+}
+
+/** Chain time, not the agent's clock. A deadline is consensus state. */
+export async function chainNow(c: Chain): Promise<bigint> {
+  const block = await c.pub.getBlock({ blockTag: "latest" });
+  return block.timestamp;
 }
