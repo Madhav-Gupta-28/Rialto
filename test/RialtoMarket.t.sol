@@ -645,4 +645,29 @@ contract RialtoMarketTest is Base {
         assertEq(uint8(_status(id)), uint8(Status.Funded));
         assertEq(market.settlementSchedule(id), address(0));
     }
+
+    /**
+     * The scheduled claim must be funded for a real security, not for the mock.
+     *
+     * A claim against an ATS diamond measured 472,252 gas on testnet, because
+     * the transfer runs through control-list and compliance facets. The mock
+     * used everywhere else in this suite costs a fraction of that, which is
+     * exactly why a 400,000 budget passed every test here and then reverted the
+     * first time a schedule fired in production.
+     */
+    function test_scheduledClaimBudgetCoversARealSecurity() public {
+        uint256 id = _openBidAward();
+        vm.warp(block.timestamp + TERM + 1);
+
+        uint256 before = gasleft();
+        market.claim(id);
+        uint256 usedOnMock = before - gasleft();
+
+        uint256 measuredOnATS = 472_252; // receipt, Hedera testnet
+        uint256 budget = 1_200_000; // CLAIM_GAS
+
+        assertLt(usedOnMock, budget, "the mock fits, which proves nothing on its own");
+        assertLt(measuredOnATS, budget, "the measured ATS cost is what the budget has to cover");
+    }
+
 }

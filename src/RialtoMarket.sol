@@ -46,8 +46,25 @@ contract RialtoMarket {
     address private constant HSS = address(0x16b);
     int64 private constant HSS_SUCCESS = 22;
 
-    /// Enough for a status write, an exposure decrement and one transfer.
-    uint256 private constant CLAIM_GAS = 400_000;
+    /**
+     * Gas handed to the scheduled `claim`.
+     *
+     * Set from a measurement, not an estimate. A `claim` against a real Asset
+     * Tokenization Studio security used **472,252 gas** on testnet: the transfer
+     * runs through a diamond's control-list and compliance facets, which a
+     * plain ERC-20 mock does not. The first version budgeted 400,000, every
+     * unit test passed because the mock is cheap, and the schedule then fired
+     * in production and reverted out of gas.
+     *
+     * `eth_estimateGas` reported 277,394 for the same call, which is why the
+     * number here comes from a receipt instead — the relay under-reports, as
+     * §3.4.4 says in as many words.
+     *
+     * Unused gas is refunded, so the headroom costs almost nothing; the only
+     * pressure against raising it further is that `hasScheduleCapacity` is
+     * likelier to refuse a larger reservation.
+     */
+    uint256 private constant CLAIM_GAS = 1_200_000;
 
     /// An auction shorter than this cannot be reacted to by a human bidder.
     uint64 public constant MIN_BID_WINDOW = 60;
