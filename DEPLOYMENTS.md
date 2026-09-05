@@ -95,7 +95,8 @@ under a role-gated write, and anyone can check it without trusting us.
 | `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
 | `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
 | `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
-| `ComplianceLens` | [`0xec0d6b732a0fc4ad951904ba45bbaea6be727452`](https://hashscan.io/testnet/contract/0xec0d6b732a0fc4ad951904ba45bbaea6be727452) | read-only; says *why* a settlement is blocked |
+| `ComplianceLens` | [`0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470`](https://hashscan.io/testnet/contract/0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470) | **current**; read-only, says *why* a settlement is blocked |
+| `ComplianceLens` (first) | `0xec0d6b732a0fc4ad951904ba45bbaea6be727452` | superseded — never checked the escrow's own standing |
 | `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
 
 ## The lifecycle, run on testnet
@@ -438,6 +439,30 @@ claim                          ok           status Defaulted, underwriter 2,100 
 Internal KYC is switched on for the whole security, so every settlement above
 `#6` runs against a token that enforces it — including request #7's repayment.
 
+### The escrow has a standing of its own — request #9
+
+The one the first lens got wrong. Every settlement is a transfer *from* the
+market, a permissioned security screens both sides, and under `isWhiteList` the
+market has to be on the control list to hold collateral at all. So it can also
+be taken off one — and then nothing settles for anybody, whatever the
+beneficiary's own standing is.
+
+Both lenses were deployed and read at the same moment against the same live
+position:
+
+```
+                                shipped lens      corrected lens
+loan funded, all admitted       None              None
+market removed from the list    None              EscrowNotListed
+  borrower repays                                 refused, status still Funded
+market added back               None              None
+  borrower repays                                 ok, status Repaid
+```
+
+The first lens reported a clean bill of health for a position that could not
+move a token. It only ever asked about the party being paid, which is the
+easier half of a question with two halves.
+
 ## The document
 
 Published, so the claim is checkable by anyone rather than only by us.
@@ -492,8 +517,12 @@ registered, ids `0x…01` through `0x…08`, and **BOND is id 2 at version 1**.
 - **`forge script --gas-limit` does nothing.** Forge treats it as an alias for
   `--block-gas-limit`. The flag that matters is `-g` /
   `--gas-estimate-multiplier`.
-- **But don't over-set it either.** The relay reserves `gasLimit × gasPrice`
-  up front and rejects the transaction if the balance cannot cover it. `-g 300`
-  failed with *Insufficient funds for transfer* on an account holding 9.7 HBAR;
-  `-g 140` went through and cost 2.4. Raise it only when a deployment actually
-  runs out mid-constructor.
+- **There is no single right multiplier — it depends on the call.** The relay
+  reserves `gasLimit × gasPrice` up front and rejects the transaction if the
+  balance cannot cover the reservation. A `deployBond` needs `-g 2500` because
+  the relay under-reports constructor gas badly; an ordinary call fails at
+  `-g 300` on a 9.7 HBAR account with *Insufficient funds for transfer* and
+  goes through at `-g 140` for 2.4 HBAR. Full table in ARCHITECTURE.md §3.4.5.
+- *Insufficient funds for transfer* on an account that visibly has funds means
+  the reservation, not the fee. Lower the multiplier or top up the account —
+  more gas makes it worse.

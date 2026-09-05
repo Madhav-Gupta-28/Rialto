@@ -366,8 +366,30 @@ The factory is in active use — deployments occur regularly, including on
    alias for `--block-gas-limit`, so it does nothing to the transaction. The
    flag that matters is `-g` / `--gas-estimate-multiplier`, and Hedera's relay
    under-reports deployment gas badly enough that the 130% default runs out
-   mid-constructor. Use `-g 2500`. This costs a deployment's worth of HBAR to
-   discover, twice.
+   mid-constructor. This costs a deployment's worth of HBAR to discover, twice.
+
+   **But the multiplier is bounded from both sides, and the two failures look
+   nothing alike.** The relay reserves `gasLimit × gasPrice` up front and
+   rejects the transaction outright if the balance cannot cover the reservation
+   — not the spend, the reservation. Both ends were measured:
+
+   | Multiplier | Call | Balance | Result |
+   |---|---|---|---|
+   | `-g 130` (default) | `deployBond` | ample | runs out mid-constructor |
+   | `-g 2500` | `deployBond` | ample | succeeds; ~8 HBAR actually charged |
+   | `-g 300` | ordinary call | 9.7 HBAR | *Insufficient funds for transfer* |
+   | `-g 140` | ordinary call | 9.7 HBAR | succeeds, 2.4 HBAR |
+
+   So there is no single right value. A **deployment** needs `-g 2500` and an
+   account fat enough to have that reserved against it; an **ordinary call**
+   needs `-g 140` and fails at `-g 300` on a thin account. The failure to
+   recognise is *Insufficient funds for transfer* on an account that plainly
+   has funds — that is the reservation, not the fee, and the fix is a lower
+   multiplier or a fuller account rather than more gas.
+
+   Hedera charges for gas *used*, not the limit, so the unused reservation
+   comes back: the `Mandates` deployment used 427,410 gas and cost 0.4702 HBAR
+   against 0.4958 at the limit.
 6. **ATS validates the ISIN, and it is a real ISIN.** `deployBond` reverts with
    `WrongISIN(string)` (`0xdf749cc5`) unless the string is exactly 12
    characters, and with `WrongISINChecksum(string)` unless the twelfth is a
@@ -465,6 +487,22 @@ Role constants (from `constants/roles.sol`):
 > collateral. This is the ERC-3643 trap that makes ordinary AMMs incompatible
 > with permissioned securities, and it is a required deployment step, not an
 > optional one. See §9.1.
+
+**And it has a second half that was missed the first time.** An address that can
+be added can be removed. `ComplianceLens` originally screened only the party due
+the collateral, so an escrow taken off the control list mid-loan produced a
+lens reading `None` against a position that could not move a token. Measured
+with both versions deployed and read at the same block:
+
+```
+                                shipped lens      corrected lens
+market removed from the list    None              EscrowNotListed
+  repay                                           refused, status still Funded
+```
+
+A permissioned security screens **both sides of a transfer**, and the escrow is
+the sender of every settlement. Any check that reasons only about the recipient
+is answering half the question. §5.6.
 
 ### 3.6 Scheduled contract calls — HIP-1215, verified live
 
