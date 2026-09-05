@@ -137,7 +137,11 @@ contract RialtoMarketTest is Base {
 
         (address to, uint256 expiry,,,,) = hss.scheduled(0);
         assertEq(to, address(market));
-        assertEq(expiry, uint256(market.get(id).dueAt) + 1, "fires one second after maturity");
+        assertEq(
+            expiry,
+            uint256(market.get(id).dueAt) + market.SETTLEMENT_MARGIN(),
+            "fires a margin past maturity, not one second — see SETTLEMENT_MARGIN"
+        );
     }
 
     /// The whole point: nobody shows up, and the position still settles.
@@ -668,6 +672,37 @@ contract RialtoMarketTest is Base {
 
         assertLt(usedOnMock, budget, "the mock fits, which proves nothing on its own");
         assertLt(measuredOnATS, budget, "the measured ATS cost is what the budget has to cover");
+    }
+
+
+    /**
+     * The settlement must be scheduled late enough for `claim`'s own time check
+     * to pass when the network runs it.
+     *
+     * A scheduled call sees a `block.timestamp` behind the second it was
+     * scheduled for — measured on testnet at two seconds early. Scheduling at
+     * `dueAt + 1` therefore hands the network a call that reverts StillCurrent,
+     * which is what happened twice in production while this suite stayed green,
+     * because Foundry's clock has no such lag.
+     */
+    function test_settlementIsScheduledLateEnoughToActuallySettle() public {
+        MockHSS hss = _installHSS();
+        uint256 id = _openBidAward();
+
+        (, uint256 expiry,,,,) = hss.scheduled(0);
+        uint256 due = market.get(id).dueAt;
+
+        assertEq(expiry, due + market.SETTLEMENT_MARGIN(), "scheduled at maturity plus the margin");
+        assertGe(market.SETTLEMENT_MARGIN(), 10, "one second is not enough for the observed lag");
+
+        // The property that matters: even with the EVM clock running behind the
+        // scheduled second, claim's check still passes.
+        uint256 observedLag = 5;
+        vm.warp(expiry - observedLag);
+        assertGt(block.timestamp, due, "claim would still see itself as past maturity");
+
+        market.claim(id);
+        assertEq(uint8(_status(id)), uint8(Status.Defaulted));
     }
 
 }

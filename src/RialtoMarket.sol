@@ -105,6 +105,25 @@ contract RialtoMarket {
 
     uint16 public constant BPS = 10_000;
 
+    /**
+     * How far past maturity the settlement is scheduled.
+     *
+     * Not one second, which is the obvious choice and is wrong. A scheduled
+     * call on Hedera executes with a `block.timestamp` that *lags* the second
+     * it was scheduled for. Measured directly with a probe contract on testnet:
+     * a call scheduled for 1788608600 ran at consensus 1788608600.149 and saw
+     * `block.timestamp == 1788608598`, two seconds early.
+     *
+     * `claim` requires `block.timestamp > dueAt`, so scheduling at `dueAt + 1`
+     * hands the network a call that reverts `StillCurrent` — which is exactly
+     * what happened twice in production, silently, while every unit test passed
+     * because Foundry's clock has no such lag.
+     *
+     * A minute of margin costs a minute of settlement latency on a loan
+     * measured in days, and absorbs far more drift than has ever been observed.
+     */
+    uint64 public constant SETTLEMENT_MARGIN = 60;
+
     /// Ceiling above which `rateBps` caps instead of risking an overflow.
     uint256 private constant MAX_AMOUNT = type(uint128).max;
 
@@ -497,8 +516,10 @@ contract RialtoMarket {
      *      award while decoding.
      */
     function _scheduleSettlement(uint256 id, uint64 dueAt) private {
-        // +1 because claim() requires block.timestamp strictly past dueAt.
-        uint256 expiry = uint256(dueAt) + 1;
+        // See SETTLEMENT_MARGIN: the EVM clock inside a scheduled call runs
+        // behind the second it was scheduled for, so `dueAt + 1` is not late
+        // enough for `claim`'s own time check to pass.
+        uint256 expiry = uint256(dueAt) + SETTLEMENT_MARGIN;
 
         // These are raw calls on purpose, and the reason is easy to get wrong.
         //
