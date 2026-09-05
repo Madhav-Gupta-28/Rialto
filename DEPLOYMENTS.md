@@ -89,22 +89,24 @@ under a role-gated write, and anyone can check it without trusting us.
 | Contract | Address | Note |
 |---|---|---|
 | `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | **current**, post-audit |
-| `RialtoMarket` | [`0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686`](https://hashscan.io/testnet/contract/0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686) | **current** (`0.0.10378973`), with coupon pass-through |
+| `RialtoMarket` | [`0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4`](https://hashscan.io/testnet/contract/0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4) | **current** (`0.0.10382007`) |
+| `RialtoMarket` (coupon pass-through) | `0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686` | superseded — a coupon larger than the repayment was kept by the lender |
 | `RialtoMarket` (no coupons) | `0xC7C915740e670f85743304019302D8760F857a0a` | superseded |
 | `RialtoMarket` (audited, wrong schedule margin) | `0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15` | superseded |
 | `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
 | `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
 | `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
-| `ComplianceLens` | [`0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470`](https://hashscan.io/testnet/contract/0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470) | **current**; read-only, says *why* a settlement is blocked |
+| `ComplianceLens` | [`0xd65580d345aE3c13Ce58586C0891b67198f23246`](https://hashscan.io/testnet/contract/0xd65580d345aE3c13Ce58586C0891b67198f23246) | **current** (`0.0.10382009`); read-only, says *why* a settlement is blocked |
+| `ComplianceLens` (bound to the superseded market) | `0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470` | superseded with the market it points at |
 | `ComplianceLens` (first) | `0xec0d6b732a0fc4ad951904ba45bbaea6be727452` | superseded — never checked the escrow's own standing |
 | `DemoCash` | `0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365` | 6-decimal cash leg |
 
-All four are **verified**, and readable as source on HashScan:
+Every contract is **verified**, and readable as source on HashScan:
 
 ```
-RialtoMarket    0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686   match
+RialtoMarket    0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4   match
+ComplianceLens  0xd65580d345aE3c13Ce58586C0891b67198f23246   match
 Mandates        0xb4F8cB274387A5190CeF7582004558809f8547a4   match
-ComplianceLens  0xE4f8b3d806914FC9E782e280E8de6a0F0F9B6470   match
 DemoCash        0x55e9baf7dcfe0e2a4e51e1bdebb4e20d6247e365   match
 ```
 
@@ -386,6 +388,35 @@ which reads as "no scheduling here" and degrades to a manual `claim()`.
 The regression test uses `vm.mockCall` rather than `vm.etch`, because `mockCall`
 makes an address answer *without giving it code* — the exact shape of a Hedera
 system contract.
+
+## The lifecycle on the current market, run end to end
+
+One loan, from an open request to a settled repayment, with a coupon falling
+inside the term. Every figure below was read off the chain, not computed here.
+
+```
+open        4,200 RDN27 pledged against 4,000 dUSD, 900s term
+            docFromChain true, hash 0xbcef65bc… read off the security itself
+bid         4,010.000000 dUSD
+award       Funded, dueAt 1788635260
+            settlement booked with the network: schedule 0x…9E6Ae6
+
+the issuer declares coupon 6 — 5% annual, record date 1788634517, inside the term
+scheduleCoupon books it; nobody touches it afterwards
+
+            manufacturedOwed   57.534246 dUSD   <- established by the network
+            couponRecorded     true
+            repaymentDue    3,952.465754 dUSD   <- 4,010.000000 - 57.534246
+
+repay       lender received  3,952.465754 dUSD
+            borrower paid    3,952.465754 dUSD
+            collateral returned 4,200 RDN27, escrow 0
+            status Repaid, manufacturedOwed 0
+```
+
+The borrower never sees a coupon payment and never chases one. They simply owe
+less, which is how a repo settles a manufactured payment and why the obligation
+needs no enforcement.
 
 ## Compliance, shown not described
 
