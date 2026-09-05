@@ -492,9 +492,16 @@ contract RialtoMarket {
         // moving it separately. This is how repo settles a manufactured payment,
         // and it means the obligation needs no enforcement: the lender simply
         // receives less.
+        // Net only as far as the repayment reaches. A coupon worth more than the
+        // whole repayment is reachable rather than theoretical — a large pledge
+        // against a small principal earns more than the loan costs — and zeroing
+        // the obligation here would hand the lender the difference. The residual
+        // survives as a debt the lender still owes, payable through
+        // `settleManufacturedPayment`, exactly as on a default.
         uint256 due = repaymentDue(id);
-        uint256 netted = manufacturedOwed[id];
-        manufacturedOwed[id] = 0;
+        uint256 owed = manufacturedOwed[id];
+        uint256 netted = owed > r.repayAmount ? r.repayAmount : owed;
+        manufacturedOwed[id] = owed - netted;
 
         emit Repaid(id, due);
         if (netted != 0) emit ManufacturedPaymentSettled(id, r.lender, r.borrower, netted);
