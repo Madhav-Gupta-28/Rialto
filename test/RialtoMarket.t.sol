@@ -140,7 +140,7 @@ contract RialtoMarketTest is Base {
         assertEq(
             expiry,
             uint256(market.get(id).dueAt) + market.SETTLEMENT_MARGIN(),
-            "fires a margin past maturity, not one second — see SETTLEMENT_MARGIN"
+            "fires a margin past maturity, not one second"
         );
     }
 
