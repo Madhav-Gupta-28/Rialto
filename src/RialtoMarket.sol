@@ -6,6 +6,7 @@ import {IERC1643} from "./interfaces/IERC1643.sol";
 import {IHederaScheduleService} from "./interfaces/IHederaScheduleService.sol";
 import {Mandates} from "./Mandates.sol";
 import {Status, Request, Bid} from "./RialtoTypes.sol";
+import {CouponPassThrough} from "./CouponPassThrough.sol";
 
 /**
  * @title  RialtoMarket
@@ -148,6 +149,28 @@ contract RialtoMarket {
     /// was created. `address(0)` means settlement is manual only.
     mapping(uint256 => address) public settlementSchedule;
 
+    /**
+     * Cash the lender owes the borrower for income the collateral threw off
+     * while it was pledged — the manufactured payment.
+     *
+     * A coupon belongs to whoever holds the security on its record date, and
+     * while a loan is live that is this contract. The borrower still owns the
+     * bond economically and gets it back on repayment, so the income is theirs.
+     * Under the GMRA the collateral taker owes it to the collateral giver, and
+     * in practice it is netted at repayment rather than wired separately, which
+     * is what `repay` does with this figure.
+     */
+    mapping(uint256 => uint256) public manufacturedOwed;
+
+    /// requestId => couponId => already counted, so it cannot be counted twice.
+    mapping(uint256 => mapping(uint256 => bool)) public couponRecorded;
+
+    /// How many coupons `award` looks back through when scheduling record dates.
+    uint256 private constant COUPON_SCAN = 8;
+
+    /// Enough for the read, the arithmetic and two storage writes.
+    uint256 private constant COUPON_GAS = 900_000;
+
     event Requested(
         uint256 indexed id,
         address indexed borrower,
@@ -173,6 +196,11 @@ contract RialtoMarket {
     event BidReleased(uint256 indexed id, address indexed underwriter);
     event SettlementScheduled(uint256 indexed id, address indexed schedule, uint256 expirySecond);
     event SettlementReleaseFailed(uint256 indexed id, address indexed schedule);
+    event CouponRecorded(uint256 indexed id, uint256 indexed couponId, address indexed beneficiary, uint256 amount);
+    event ManufacturedPaymentSettled(
+        uint256 indexed id, address indexed payer, address indexed beneficiary, uint256 amount
+    );
+    event CouponScheduled(uint256 indexed id, uint256 indexed couponId, address schedule, uint256 recordDate);
 
     error BadWindow();
     error BadTerm();
@@ -197,6 +225,10 @@ contract RialtoMarket {
     error TransferFailed();
     error NothingReceived();
     error Reentrancy();
+    error NotAwarded();
+    error CouponOutsideLoan();
+    error AlreadyRecorded();
+    error NothingOwed();
 
     /**
      * Collateral is an arbitrary third-party contract — an ATS diamond whose
@@ -446,6 +478,7 @@ contract RialtoMarket {
         // Ask Hedera to call claim(id) itself at maturity. Best-effort by
         // construction; a failure here must never fail the award.
         _scheduleSettlement(id, r.dueAt);
+        _scheduleCoupons(id, r.collateral, r.dueAt);
     }
 
     /// @notice Repay the agreed amount and take the collateral back.
@@ -458,13 +491,22 @@ contract RialtoMarket {
         r.status = Status.Repaid;
         liveExposure[r.lender] -= r.principal;
 
-        emit Repaid(id, r.repayAmount);
+        // Net off income the collateral earned while it was pledged rather than
+        // moving it separately. This is how repo settles a manufactured payment,
+        // and it means the obligation needs no enforcement: the lender simply
+        // receives less.
+        uint256 due = repaymentDue(id);
+        uint256 netted = manufacturedOwed[id];
+        manufacturedOwed[id] = 0;
+
+        emit Repaid(id, due);
+        if (netted != 0) emit ManufacturedPaymentSettled(id, r.lender, r.borrower, netted);
 
         // The pending claim would revert harmlessly on a repaid request, but
         // releasing it returns the reserved second and the gas deposit.
         _cancelSettlement(id);
 
-        _pull(r.cash, msg.sender, r.lender, r.repayAmount);
+        if (due != 0) _pull(r.cash, msg.sender, r.lender, due);
         _push(r.collateral, r.borrower, r.collateralAmount);
     }
 
@@ -495,6 +537,77 @@ contract RialtoMarket {
         _push(r.collateral, r.lender, r.collateralAmount);
     }
 
+    /* ─────────────────── the manufactured payment ─────────────────── */
+
+    /**
+     * @notice Record what a coupon paid on collateral that was pledged when its
+     *         record date passed, and credit it to the borrower.
+     *
+     * A coupon belongs to whoever holds the security on the record date, and
+     * while a loan is live that is this contract. Without this the borrower —
+     * who still owns the bond and gets it back on repayment — is credited with
+     * nothing, and the income accrues to an escrow that has no way to spend it.
+     *
+     * @dev Permissionless, and normally nobody calls it by hand: `award` asks
+     *      Hedera to call it on the record date. Anyone may, because the answer
+     *      is fixed by the security's own snapshot and there is nothing for a
+     *      caller to steer.
+     *
+     *      The amount is apportioned by this request's share of the escrow's
+     *      balance, because that balance covers every live request against the
+     *      same security at once. Crediting one request with the escrow's whole
+     *      payable would pay one borrower using another borrower's coupon.
+     */
+    function recordCoupon(uint256 id, uint256 couponId) public {
+        Request storage r = _requests[id];
+        if (r.dueAt == 0) revert NotAwarded();
+        if (couponRecorded[id][couponId]) revert AlreadyRecorded();
+
+        (uint256 amount, uint256 recordDate) = CouponPassThrough.owed(
+            r.collateral, address(this), couponId, r.collateralAmount, CouponPassThrough.decimalsOf(r.cash)
+        );
+
+        // Only income earned *while pledged* passes through this contract.
+        // Anything outside the term is between the holder and the issuer.
+        uint64 awardedAt = r.dueAt - r.term;
+        if (recordDate < awardedAt || recordDate > r.dueAt) revert CouponOutsideLoan();
+
+        couponRecorded[id][couponId] = true;
+        manufacturedOwed[id] += amount;
+
+        emit CouponRecorded(id, couponId, r.borrower, amount);
+    }
+
+    /**
+     * @notice Pay a manufactured payment that repayment did not net off.
+     * @dev `repay` nets the obligation against what the borrower owes, which is
+     *      how repo settles it and needs no enforcement. This is the other path:
+     *      a position that defaulted, or a coupon recorded after repayment had
+     *      already happened.
+     */
+    function settleManufacturedPayment(uint256 id) external nonReentrant {
+        Request storage r = _requests[id];
+        uint256 amount = manufacturedOwed[id];
+        if (amount == 0) revert NothingOwed();
+
+        manufacturedOwed[id] = 0;
+        emit ManufacturedPaymentSettled(id, msg.sender, r.borrower, amount);
+
+        _pull(r.cash, msg.sender, r.borrower, amount);
+    }
+
+    /**
+     * @notice What the borrower actually hands over at repayment.
+     * @dev The agreed repayment less income the collateral earned while pledged.
+     *      Floored at zero: a coupon larger than the fee is an odd loan, not a
+     *      licence to drain the lender.
+     */
+    function repaymentDue(uint256 id) public view returns (uint256) {
+        Request memory r = _requests[id];
+        uint256 owed = manufacturedOwed[id];
+        return owed >= r.repayAmount ? 0 : r.repayAmount - owed;
+    }
+
     /* ─────────────────── settlement the network performs ─────────────────── */
 
     /**
@@ -516,50 +629,76 @@ contract RialtoMarket {
      *      award while decoding.
      */
     function _scheduleSettlement(uint256 id, uint64 dueAt) private {
-        // See SETTLEMENT_MARGIN: the EVM clock inside a scheduled call runs
-        // behind the second it was scheduled for, so `dueAt + 1` is not late
-        // enough for `claim`'s own time check to pass.
         uint256 expiry = uint256(dueAt) + SETTLEMENT_MARGIN;
-
-        // These are raw calls on purpose, and the reason is easy to get wrong.
-        //
-        // Hedera's Schedule Service is a *native* system contract. It answers
-        // calls but has no EVM bytecode at all — `eth_getCode` on 0x…016b
-        // returns `0x`. Solidity emits an `extcodesize` check before every
-        // high-level call, so a normal `HSS.hasScheduleCapacity(...)` reverts
-        // before the call is even attempted, and `try/catch` cannot see it
-        // because the revert happens in this frame. Guarding on
-        // `address(HSS).code.length` fails the same way from the other side: it
-        // reads zero on Hedera and silently disables scheduling on the only
-        // network that supports it.
-        //
-        // A raw call does neither. On Hedera it reaches the service and returns
-        // data. On a chain with nothing deployed there it returns success with
-        // empty returndata, which the length checks below read as "no
-        // scheduling here" and skip. Every failure is a no-op that degrades to
-        // a manual claim().
-        (bool ok, bytes memory data) = HSS.staticcall(
-            abi.encodeWithSelector(IHederaScheduleService.hasScheduleCapacity.selector, expiry, CLAIM_GAS)
-        );
-        if (!ok || data.length < 32 || !abi.decode(data, (bool))) return;
-
-        (ok, data) = HSS.call(
-            abi.encodeWithSelector(
-                IHederaScheduleService.scheduleCall.selector,
-                address(this),
-                expiry,
-                CLAIM_GAS,
-                uint64(0),
-                abi.encodeCall(this.claim, (id))
-            )
-        );
-        if (!ok || data.length < 64) return;
-
-        (int64 rc, address schedule) = abi.decode(data, (int64, address));
-        if (rc != HSS_SUCCESS || schedule == address(0)) return;
+        address schedule = _schedule(expiry, CLAIM_GAS, abi.encodeCall(this.claim, (id)));
+        if (schedule == address(0)) return;
 
         settlementSchedule[id] = schedule;
         emit SettlementScheduled(id, schedule, expiry);
+    }
+
+    /**
+     * @dev Ask Hedera to call `recordCoupon` for every record date that falls
+     *      inside this loan.
+     *
+     *      Without it the borrower's claim depends on somebody noticing, and the
+     *      one party with a reason to stay quiet is the one who owes it. With
+     *      it, the claim is established by the network, on the day, at the
+     *      lender's expense — which is the right way round.
+     *
+     *      Best-effort throughout. A security with no coupons, one that answers
+     *      oddly, or a second that is already full all mean the loan simply
+     *      funds without the extra schedule, and `recordCoupon` stays open to
+     *      anyone afterwards.
+     */
+    function _scheduleCoupons(uint256 id, address security, uint64 dueAt) private {
+        uint256 count = CouponPassThrough.tryCouponCount(security);
+        if (count == 0) return;
+
+        uint256 from = count > COUPON_SCAN ? count - COUPON_SCAN : 0;
+        for (uint256 couponId = from + 1; couponId <= count; couponId++) {
+            (bool ok, uint256 recordDate) = CouponPassThrough.tryRecordDate(security, address(this), couponId);
+            if (!ok) continue;
+            // Only dates still ahead of us, and inside the term, are worth booking.
+            if (recordDate <= block.timestamp || recordDate > dueAt) continue;
+
+            address schedule =
+                _schedule(recordDate + SETTLEMENT_MARGIN, COUPON_GAS, abi.encodeCall(this.recordCoupon, (id, couponId)));
+            if (schedule != address(0)) emit CouponScheduled(id, couponId, schedule, recordDate);
+        }
+    }
+
+    /**
+     * @dev Book one call with the Hedera Schedule Service, or report that it
+     *      could not be booked.
+     *
+     *      Raw calls on purpose, and the reason is easy to get wrong. HSS is a
+     *      *native* system contract: it answers calls but has no EVM bytecode at
+     *      all, so `eth_getCode` on 0x…016b returns `0x`. Solidity emits an
+     *      extcodesize check before every high-level call, which reverts in this
+     *      frame where `try/catch` cannot see it — and guarding on
+     *      `code.length` fails from the other side, reading zero on Hedera and
+     *      disabling scheduling on the only network that supports it.
+     *
+     *      A raw call does neither. On Hedera it reaches the service; on a chain
+     *      with nothing deployed there it returns success with empty returndata,
+     *      which the length checks read as "no scheduling here".
+     */
+    function _schedule(uint256 expiry, uint256 gasLimit, bytes memory callData) private returns (address) {
+        (bool ok, bytes memory data) = HSS.staticcall(
+            abi.encodeWithSelector(IHederaScheduleService.hasScheduleCapacity.selector, expiry, gasLimit)
+        );
+        if (!ok || data.length < 32 || !abi.decode(data, (bool))) return address(0);
+
+        (ok, data) = HSS.call(
+            abi.encodeWithSelector(
+                IHederaScheduleService.scheduleCall.selector, address(this), expiry, gasLimit, uint64(0), callData
+            )
+        );
+        if (!ok || data.length < 64) return address(0);
+
+        (int64 rc, address schedule) = abi.decode(data, (int64, address));
+        return rc == HSS_SUCCESS ? schedule : address(0);
     }
 
     /// @dev Release a schedule that can no longer do anything useful.

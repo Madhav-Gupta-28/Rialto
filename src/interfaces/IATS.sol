@@ -126,3 +126,46 @@ library ATSRoles {
     bytes32 internal constant KYC = 0x754f499f9fdfbb089d12bdec817a6863d593d8a3ea7f546c00a5cafd20957bfc;
     bytes32 internal constant PAUSER = 0x3cb8b459fdb6e7dc3d2a2aa529e530f885d45e03584adb438423209c86a2731f;
 }
+
+/* ─────────────────────────── coupons ─────────────────────────── */
+
+/**
+ * @notice A coupon as Asset Tokenization Studio records it.
+ *
+ * Entitlement is decided by the holder's balance at `recordDate`, captured in a
+ * snapshot. That is the whole reason Rialto has to care: while a loan is live
+ * the escrow is the holder, so the escrow is the one the security credits.
+ */
+struct CouponData {
+    uint256 recordDate;
+    uint256 executionDate;
+    uint256 startDate;
+    uint256 endDate;
+    uint256 fixingDate;
+    uint256 rate;
+    uint8 rateDecimals;
+    uint8 rateStatus;
+}
+
+/// @notice What a holder is owed, as an exact fraction rather than a rounded amount.
+struct CouponAmountFor {
+    uint256 numerator;
+    uint256 denominator;
+    bool recordDateReached;
+}
+
+struct CouponFor {
+    uint256 tokenBalance;
+    uint8 decimals;
+    uint256 nominalValue;
+    uint256 nominalValueDecimals;
+    bool recordDateReached;
+    CouponData coupon;
+    CouponAmountFor couponAmount;
+    bool isDisabled;
+}
+
+interface IATSCoupon {
+    function getCouponCount() external view returns (uint256 couponCount_);
+    function getCouponFor(uint256 couponID, address account) external view returns (CouponFor memory);
+}

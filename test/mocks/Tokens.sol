@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {CouponFor, CouponData, CouponAmountFor} from "../../src/interfaces/IATS.sol";
+
 /**
  * A minimal ERC-20 whose return behaviour can be made deliberately awkward,
  * because the tokens Rialto actually meets are awkward: Hedera's HTS facade,
@@ -115,5 +117,67 @@ contract MockSecurity is MockERC20 {
 
     function getAllDocuments() external view returns (bytes32[] memory) {
         return _names;
+    }
+
+    /* ─────────────────────────── coupons ─────────────────────────── */
+
+    /**
+     * A stand-in for the ATS coupon facet.
+     *
+     * It does not reproduce ATS's day-count arithmetic, and does not need to.
+     * The property Rialto depends on is the one preserved here: the payable is
+     * returned as an exact fraction and is *proportional to the holder's
+     * balance*, which is what makes a pledged position's share of the escrow's
+     * coupon computable at all.
+     *
+     * Checked against the real thing on testnet, where a coupon on a live ATS
+     * security reported 143.785674 payable to an escrow holding 10,500 tokens
+     * and 57.514269 to a holder of 4,200 — the same rate per token.
+     */
+    struct CouponRec {
+        uint256 recordDate;
+        uint256 ratePerToken; // scaled by 1e18
+        bool set;
+    }
+
+    CouponRec[] private _coupons;
+
+    function setCouponAt(uint256 recordDate, uint256 ratePerToken) external returns (uint256 couponId) {
+        _coupons.push(CouponRec({recordDate: recordDate, ratePerToken: ratePerToken, set: true}));
+        return _coupons.length;
+    }
+
+    function getCouponCount() external view returns (uint256) {
+        return _coupons.length;
+    }
+
+    function getCouponFor(uint256 couponId, address account) external view returns (CouponFor memory c_) {
+        require(couponId >= 1 && couponId <= _coupons.length, "no such coupon");
+        CouponRec memory c = _coupons[couponId - 1];
+
+        c_.tokenBalance = balanceOf[account];
+        c_.decimals = decimals;
+        c_.nominalValue = 100;
+        c_.nominalValueDecimals = 0;
+        c_.recordDateReached = block.timestamp >= c.recordDate;
+
+        c_.coupon = CouponData({
+            recordDate: c.recordDate,
+            executionDate: c.recordDate + 1 days,
+            startDate: c.recordDate,
+            endDate: c.recordDate + 30 days,
+            fixingDate: c.recordDate,
+            rate: c.ratePerToken,
+            rateDecimals: 18,
+            rateStatus: 1
+        });
+
+        // Proportional to balance, as an exact fraction, exactly as ATS returns it.
+        c_.couponAmount = CouponAmountFor({
+            numerator: c_.tokenBalance * c.ratePerToken,
+            denominator: 1e18 * (10 ** uint256(decimals)),
+            recordDateReached: c_.recordDateReached
+        });
+        c_.isDisabled = false;
     }
 }
