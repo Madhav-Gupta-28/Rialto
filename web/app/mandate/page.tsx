@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
+import { useWrite } from "@/lib/useWrite";
+import { amount, days as parseDays, basisPoints } from "@/lib/amount";
 import { marketAbi, mandatesAbi } from "@/lib/abi";
 import { MANDATES, MARKET, BOND, CASH_DECIMALS, hashscan } from "@/lib/chain";
-import { units, parseUnits, short, duration, bps } from "@/lib/format";
+import { units, short, duration, bps } from "@/lib/format";
 import Tx from "@/components/Tx";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -20,7 +22,7 @@ const ZERO = "0x0000000000000000000000000000000000000000";
  */
 export default function MandatePage() {
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
+  const { write, data: hash, error, isPending } = useWrite();
 
   const [agent, setAgent] = useState("");
   const [perDeal, setPerDeal] = useState("500000");
@@ -46,6 +48,13 @@ export default function MandatePage() {
   });
 
   const active = mandate?.active ?? false;
+
+  const pd = amount(perDeal, CASH_DECIMALS);
+  const tot = amount(total, CASH_DECIMALS);
+  const rate = basisPoints(minRate);
+  const term = parseDays(maxTerm, 60);
+  const agentOk = agent.trim() === "" || /^0x[0-9a-fA-F]{40}$/.test(agent.trim());
+  const mandateValid = pd.ok && tot.ok && rate.ok && term.ok && agentOk;
 
   return (
     <section className="first">
@@ -93,14 +102,18 @@ export default function MandatePage() {
           <label className="field">
             <span className="name">Agent key — leave empty to bid by hand</span>
             <input className="text" placeholder="0x…" value={agent} onChange={(e) => setAgent(e.target.value)} />
-            <span className="hint">One key serves exactly one owner, so a stolen key cannot spend two balance sheets.</span>
+            <span className="hint" style={agentOk ? undefined : { color: "var(--bad)" }}>
+              {agentOk
+                ? "One key serves exactly one owner, so a stolen key cannot spend two balance sheets."
+                : "not a valid address"}
+            </span>
           </label>
 
           <div className="grid two">
-            <Field name="Largest single deal (dUSD)" value={perDeal} onChange={setPerDeal} />
-            <Field name="Total ceiling (dUSD)" value={total} onChange={setTotal} />
-            <Field name="Minimum rate (bps)" value={minRate} onChange={setMinRate} hint="500 = 5.00%" />
-            <Field name="Longest term (days)" value={maxTerm} onChange={setMaxTerm} hint="60 maximum" />
+            <Field name="Largest single deal (dUSD)" value={perDeal} onChange={setPerDeal} problem={pd.ok ? undefined : pd.why} />
+            <Field name="Total ceiling (dUSD)" value={total} onChange={setTotal} problem={tot.ok ? undefined : tot.why} />
+            <Field name="Minimum rate (bps)" value={minRate} onChange={setMinRate} hint="500 = 5.00%" problem={rate.ok ? undefined : rate.why} />
+            <Field name="Longest term (days)" value={maxTerm} onChange={setMaxTerm} hint="60 maximum" problem={term.ok ? undefined : term.why} />
           </div>
 
           {!isConnected ? (
@@ -109,19 +122,20 @@ export default function MandatePage() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 className="btn"
-                disabled={isPending}
+                disabled={isPending || !mandateValid}
                 onClick={() =>
-                  writeContract(
+                  pd.ok && tot.ok && rate.ok && term.ok &&
+                  write(
                     {
                       address: MANDATES,
                       abi: mandatesAbi,
                       functionName: "setMandate",
                       args: [
                         (agent.trim() || ZERO) as `0x${string}`,
-                        safe(perDeal),
-                        safe(total),
-                        Number(minRate) || 0,
-                        BigInt(Math.floor(Number(maxTerm) * 86400)),
+                        pd.value,
+                        tot.value,
+                        Number(rate.value),
+                        term.value,
                       ],
                     },
                     { onSuccess: () => refetch() },
@@ -136,7 +150,7 @@ export default function MandatePage() {
                   className="btn ghost"
                   disabled={isPending}
                   onClick={() =>
-                    writeContract(
+                    write(
                       { address: MANDATES, abi: mandatesAbi, functionName: "allowAsset", args: [BOND, true] },
                       { onSuccess: () => refetchAllowed() },
                     )
@@ -151,7 +165,7 @@ export default function MandatePage() {
                   className="btn ghost"
                   disabled={isPending}
                   onClick={() =>
-                    writeContract({ address: MANDATES, abi: mandatesAbi, functionName: "revoke" }, { onSuccess: () => refetch() })
+                    write({ address: MANDATES, abi: mandatesAbi, functionName: "revoke" }, { onSuccess: () => refetch() })
                   }
                 >
                   Stand down
@@ -179,21 +193,22 @@ export default function MandatePage() {
 }
 
 function Field({
-  name, value, onChange, hint,
-}: { name: string; value: string; onChange: (v: string) => void; hint?: string }) {
+  name, value, onChange, hint, problem,
+}: {
+  name: string; value: string; onChange: (v: string) => void; hint?: string; problem?: string;
+}) {
   return (
     <label className="field">
       <span className="name">{name}</span>
-      <input className="text" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} />
-      {hint && <span className="hint">{hint}</span>}
+      <input
+        className="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={problem ? { borderColor: "var(--bad)" } : undefined}
+      />
+      {problem ? <span className="hint" style={{ color: "var(--bad)" }}>{problem}</span>
+        : hint ? <span className="hint">{hint}</span> : null}
     </label>
   );
-}
-
-function safe(v: string): bigint {
-  try {
-    return parseUnits(v, CASH_DECIMALS);
-  } catch {
-    return 0n;
-  }
 }

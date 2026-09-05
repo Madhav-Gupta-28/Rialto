@@ -2,11 +2,13 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
+import { useWrite } from "@/lib/useWrite";
+import { amount } from "@/lib/amount";
 import { maxUint256, type Hex } from "viem";
 import { marketAbi, securityAbi } from "@/lib/abi";
 import { MARKET, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
-import { units, parseUnits, duration, bps, short } from "@/lib/format";
+import { units, duration, bps, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
 import Tx from "@/components/Tx";
@@ -204,8 +206,12 @@ function Actions(props: {
   onDone: () => void;
 }) {
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
+  const { write, data: hash, error, isPending } = useWrite();
   const [repay, setRepay] = useState("");
+
+  // Validated once, used everywhere: the hint, the disabled state and the
+  // argument all read the same result, so they cannot disagree.
+  const parsed = amount(repay, CASH_DECIMALS, props.principal);
 
   const { data: allowance } = useReadContract({
     address: CASH,
@@ -217,7 +223,7 @@ function Actions(props: {
 
   const needsApproval = (allowance ?? 0n) < props.principal;
   const send = (fn: "award" | "repay" | "claim" | "cancel" | "releaseBid") =>
-    writeContract({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
+    write({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
 
   if (!isConnected) {
     return (
@@ -247,9 +253,13 @@ function Actions(props: {
               onChange={(e) => setRepay(e.target.value)}
             />
             <span className="hint">
-              {repay && isAmount(repay)
-                ? `${bps(rateOf(props.principal, safeParse(repay), props.term))} annualised`
-                : `must be at least the principal, ${units(props.principal, CASH_DECIMALS)}`}
+              {parsed.ok
+                ? `${bps(rateOf(props.principal, parsed.value, props.term))} annualised`
+                : repay.trim() === ""
+                  ? `at least the principal, ${units(props.principal, CASH_DECIMALS)}`
+                  : parsed.why === "too small"
+                    ? `below the principal of ${units(props.principal, CASH_DECIMALS)} — that is a gift, not a loan`
+                    : parsed.why}
             </span>
           </label>
 
@@ -264,12 +274,7 @@ function Actions(props: {
                 style={{ marginBottom: 12 }}
                 disabled={isPending}
                 onClick={() =>
-                  writeContract({
-                    address: CASH,
-                    abi: securityAbi,
-                    functionName: "approve",
-                    args: [MARKET, maxUint256],
-                  })
+                  write({ address: CASH, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] })
                 }
               >
                 Approve dUSD
@@ -279,14 +284,15 @@ function Actions(props: {
 
           <button
             className="btn"
-            disabled={isPending || !isAmount(repay)}
+            disabled={isPending || !parsed.ok}
             onClick={() =>
-              writeContract(
+              parsed.ok &&
+              write(
                 {
                   address: MARKET,
                   abi: marketAbi,
                   functionName: "bid",
-                  args: [props.id, safeParse(repay), `0x${"00".repeat(32)}` as Hex],
+                  args: [props.id, parsed.value, `0x${"00".repeat(32)}` as Hex],
                 },
                 { onSuccess: props.onDone },
               )
@@ -357,11 +363,3 @@ function Actions(props: {
   );
 }
 
-const isAmount = (s: string) => /^\d+(\.\d+)?$/.test(s.trim());
-function safeParse(s: string): bigint {
-  try {
-    return parseUnits(s, CASH_DECIMALS);
-  } catch {
-    return 0n;
-  }
-}

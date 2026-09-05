@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
+import { useWrite } from "@/lib/useWrite";
+import { amount, days as parseDays, seconds as parseSeconds } from "@/lib/amount";
 import { maxUint256, stringToHex, type Hex } from "viem";
 import { marketAbi, securityAbi } from "@/lib/abi";
 import { MARKET, BOND, CASH, CASH_DECIMALS, BOND_DECIMALS, hashscan } from "@/lib/chain";
-import { units, parseUnits } from "@/lib/format";
+import { units } from "@/lib/format";
 import Tx from "@/components/Tx";
 
 const PROSPECTUS = stringToHex("prospectus", { size: 32 });
@@ -13,7 +15,7 @@ const ZERO32 = `0x${"00".repeat(32)}` as Hex;
 
 export default function Borrow() {
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
+  const { write, data: hash, error, isPending } = useWrite();
 
   const [collateral, setCollateral] = useState("10500");
   const [principal, setPrincipal] = useState("10000");
@@ -33,10 +35,17 @@ export default function Borrow() {
     args: address ? [address] : undefined, query: { enabled: !!address },
   });
 
-  const wanted = safe(collateral, BOND_DECIMALS);
-  const needsApproval = (allowance ?? 0n) < wanted;
-  const enough = (balance ?? 0n) >= wanted && wanted > 0n;
-  const valid = enough && safe(principal, CASH_DECIMALS) > 0n && Number(days) > 0 && Number(window) >= 60;
+  // Each field is validated once and the result drives the hint, the disabled
+  // state and the argument, so they cannot drift apart.
+  const c = amount(collateral, BOND_DECIMALS);
+  const pr = amount(principal, CASH_DECIMALS);
+  const t = parseDays(days, 60);
+  const w = parseSeconds(window, 60, 604_800);
+
+  const wanted = c.ok ? c.value : 0n;
+  const needsApproval = (allowance ?? 0n) < wanted || wanted === 0n;
+  const enough = c.ok && (balance ?? 0n) >= c.value;
+  const valid = enough && pr.ok && t.ok && w.ok;
 
   return (
     <section className="first">
@@ -77,10 +86,10 @@ export default function Borrow() {
           <p className="eyebrow">Your request</p>
 
           <div className="grid two">
-            <Field name="Collateral to pledge (RDN27)" value={collateral} onChange={setCollateral} />
-            <Field name="Principal sought (dUSD)" value={principal} onChange={setPrincipal} />
-            <Field name="Term (days)" value={days} onChange={setDays} hint="60 days maximum" />
-            <Field name="Auction length (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" />
+            <Field name="Collateral to pledge (RDN27)" value={collateral} onChange={setCollateral} problem={c.ok ? undefined : c.why} />
+            <Field name="Principal sought (dUSD)" value={principal} onChange={setPrincipal} problem={pr.ok ? undefined : pr.why} />
+            <Field name="Term (days)" value={days} onChange={setDays} hint="60 days maximum" problem={t.ok ? undefined : t.why} />
+            <Field name="Auction length (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
           </div>
 
           <p className="note" style={{ margin: "6px 0 18px" }}>
@@ -95,7 +104,7 @@ export default function Borrow() {
               className="btn"
               disabled={isPending}
               onClick={() =>
-                writeContract({ address: BOND, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] })
+                write({ address: BOND, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] })
               }
             >
               {isPending ? "Approving…" : "Approve the escrow to hold RDN27"}
@@ -105,20 +114,13 @@ export default function Borrow() {
               className="btn"
               disabled={isPending || !valid}
               onClick={() =>
-                writeContract({
+                valid &&
+                c.ok && pr.ok && t.ok && w.ok &&
+                write({
                   address: MARKET,
                   abi: marketAbi,
                   functionName: "open",
-                  args: [
-                    BOND,
-                    safe(collateral, BOND_DECIMALS),
-                    CASH,
-                    safe(principal, CASH_DECIMALS),
-                    BigInt(Math.floor(Number(days) * 86400)),
-                    BigInt(Math.floor(Number(window))),
-                    PROSPECTUS,
-                    ZERO32,
-                  ],
+                  args: [BOND, c.value, CASH, pr.value, t.value, w.value, PROSPECTUS, ZERO32],
                 })
               }
             >
@@ -126,7 +128,11 @@ export default function Borrow() {
             </button>
           )}
 
-          {!enough && isConnected && <p className="hint">Not enough RDN27 for that collateral amount.</p>}
+          {isConnected && c.ok && !enough && (
+            <p className="hint">
+              You hold {units(balance ?? 0n, BOND_DECIMALS, 0)} RDN27 — not enough for that pledge.
+            </p>
+          )}
           <div style={{ marginTop: 14 }}>
             <Tx hash={hash} error={error} />
           </div>
@@ -137,21 +143,22 @@ export default function Borrow() {
 }
 
 function Field({
-  name, value, onChange, hint,
-}: { name: string; value: string; onChange: (v: string) => void; hint?: string }) {
+  name, value, onChange, hint, problem,
+}: {
+  name: string; value: string; onChange: (v: string) => void; hint?: string; problem?: string;
+}) {
   return (
     <label className="field">
       <span className="name">{name}</span>
-      <input className="text" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} />
-      {hint && <span className="hint">{hint}</span>}
+      <input
+        className="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={problem ? { borderColor: "var(--bad)" } : undefined}
+      />
+      {problem ? <span className="hint" style={{ color: "var(--bad)" }}>{problem}</span>
+        : hint ? <span className="hint">{hint}</span> : null}
     </label>
   );
-}
-
-function safe(v: string, d: number): bigint {
-  try {
-    return parseUnits(v, d);
-  } catch {
-    return 0n;
-  }
 }

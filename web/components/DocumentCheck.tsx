@@ -5,6 +5,9 @@ import { keccak256, type Hex } from "viem";
 import { useReadContract } from "wagmi";
 import { securityAbi } from "@/lib/abi";
 
+/** An offering document is prose. Anything larger is not one. */
+const MAX_BYTES = 2 * 1024 * 1024;
+
 type State =
   | { k: "loading" }
   | { k: "none" }
@@ -50,14 +53,25 @@ export default function DocumentCheck({
       return;
     }
 
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 15_000);
+
     (async () => {
       try {
-        const res = await fetch(uri);
+        const res = await fetch(uri, { signal: abort.signal });
         if (!res.ok) {
           if (live) setState({ k: "unreachable", detail: `${res.status}` });
           return;
         }
-        const bytes = new Uint8Array(await res.arrayBuffer());
+
+        // The URI is chosen by the issuer, so the size of what comes back is
+        // their decision unless it is bounded here. Reading it straight into
+        // memory would let a hostile document hang the reader's browser.
+        const bytes = await readCapped(res, MAX_BYTES);
+        if (!bytes) {
+          if (live) setState({ k: "unreachable", detail: `larger than ${MAX_BYTES / 1024} KB` });
+          return;
+        }
         const got = keccak256(bytes);
         if (!live) return;
         if (got.toLowerCase() !== frozenHash.toLowerCase()) {
@@ -66,12 +80,19 @@ export default function DocumentCheck({
           setState({ k: "ok", uri, bytes: bytes.byteLength, text: new TextDecoder().decode(bytes) });
         }
       } catch (e) {
-        if (live) setState({ k: "unreachable", detail: e instanceof Error ? e.message : String(e) });
+        if (live) {
+          const m = e instanceof Error ? (e.name === "AbortError" ? "timed out" : e.message) : String(e);
+          setState({ k: "unreachable", detail: m });
+        }
+      } finally {
+        clearTimeout(timer);
       }
     })();
 
     return () => {
       live = false;
+      abort.abort();
+      clearTimeout(timer);
     };
   }, [uri, frozenHash]);
 
@@ -152,4 +173,35 @@ export default function DocumentCheck({
       )}
     </div>
   );
+}
+
+/** Read a body, stopping the moment it passes the cap. */
+async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return buf.byteLength > max ? null : buf;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
 }
