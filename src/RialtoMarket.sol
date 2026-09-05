@@ -53,6 +53,17 @@ contract RialtoMarket {
     uint64 public constant MIN_BID_WINDOW = 60;
 
     /**
+     * And an auction longer than this cannot be resolved at all.
+     *
+     * `award` and `cancel` both require the deadline to have passed, so an
+     * unbounded window is a way to strand a request in Open forever — and with
+     * it every underwriter who bid, whose `reservedExposure` could then never be
+     * released. That is the same grief AWARD_WINDOW exists to stop, reached
+     * through a different door.
+     */
+    uint64 public constant MAX_BID_WINDOW = 7 days;
+
+    /**
      * 60 days, not 90, and the number comes from a measured network limit
      * rather than a preference. Hedera refuses a scheduled transaction whose
      * expiry is more than `scheduling.maxExpirationFutureSeconds` = 5,356,800s
@@ -123,7 +134,9 @@ contract RialtoMarket {
     event Repaid(uint256 indexed id, uint256 amount);
     event Defaulted(uint256 indexed id, address indexed lender, uint256 collateralAmount);
     event Cancelled(uint256 indexed id, address indexed by);
+    event BidReleased(uint256 indexed id, address indexed underwriter);
     event SettlementScheduled(uint256 indexed id, address indexed schedule, uint256 expirySecond);
+    event SettlementReleaseFailed(uint256 indexed id, address indexed schedule);
 
     error BadWindow();
     error BadTerm();
@@ -205,7 +218,7 @@ contract RialtoMarket {
     ) external nonReentrant returns (uint256 id) {
         if (collateral == address(0) || cash == address(0)) revert ZeroAddress();
         if (collateral == cash) revert CashIsCollateral();
-        if (bidWindow < MIN_BID_WINDOW) revert BadWindow();
+        if (bidWindow < MIN_BID_WINDOW || bidWindow > MAX_BID_WINDOW) revert BadWindow();
         if (term == 0 || term > MAX_TERM) revert BadTerm();
         if (principal == 0 || collateralAmount == 0) revert ZeroAmount();
 
@@ -271,6 +284,33 @@ contract RialtoMarket {
         _push(r.collateral, r.borrower, r.collateralAmount);
     }
 
+    /**
+     * @notice Release the standing bid on a request nobody resolved, freeing the
+     *         bidder's committed capacity.
+     *
+     * @dev `cancel` does this too, but it returns the collateral in the same
+     *      transaction — so if that transfer cannot succeed, because the
+     *      borrower has been removed from the security's control list say, the
+     *      whole call reverts and the bidder's capacity is locked with it. This
+     *      separates the two, so an underwriter's balance sheet never depends on
+     *      whether someone else's collateral can move.
+     *
+     *      Grants nothing new: past AWARD_WINDOW anyone can already cancel the
+     *      request outright.
+     */
+    function releaseBid(uint256 id) external {
+        Request storage r = _requests[id];
+        if (r.status != Status.Open) revert NotOpen();
+        if (block.timestamp < r.bidDeadline + AWARD_WINDOW) revert AuctionLive();
+
+        Bid memory cur = bestBid[id];
+        if (cur.underwriter == address(0)) revert NoBids();
+
+        reservedExposure[cur.underwriter] -= r.principal;
+        delete bestBid[id];
+        emit BidReleased(id, cur.underwriter);
+    }
+
     /* ─────────────────────────── underwriter ─────────────────────────── */
 
     /**
@@ -288,7 +328,7 @@ contract RialtoMarket {
      *      A fully compromised agent key can do nothing its owner did not
      *      already authorise.
      */
-    function bid(uint256 id, uint256 repayAmount, bytes32 reasoningRef) external {
+    function bid(uint256 id, uint256 repayAmount, bytes32 reasoningRef) external nonReentrant {
         Request storage r = _requests[id];
         if (r.status != Status.Open) revert NotOpen();
         if (block.timestamp >= r.bidDeadline) revert AuctionClosed();
@@ -489,10 +529,10 @@ contract RialtoMarket {
         address schedule = settlementSchedule[id];
         if (schedule == address(0)) return;
         delete settlementSchedule[id];
-        // Raw, and the result is deliberately ignored: releasing the slot is a
-        // courtesy, and failing to do it must never fail a repayment.
-        (bool ok,) = HSS.call(abi.encodeWithSelector(IHederaScheduleService.deleteSchedule.selector, schedule));
-        ok; // releasing the slot is a courtesy; failing must not fail a repayment
+        // Releasing the slot is a courtesy and must never fail a repayment, so
+        // the outcome is reported rather than enforced.
+        (bool released,) = HSS.call(abi.encodeWithSelector(IHederaScheduleService.deleteSchedule.selector, schedule));
+        if (!released) emit SettlementReleaseFailed(id, schedule);
     }
 
     /**
@@ -546,10 +586,24 @@ contract RialtoMarket {
      *      a partially trusted result.
      */
     function _documentHash(address collateral, bytes32 docName) private view returns (bytes32, bool) {
-        try IERC1643(collateral).getDocument(docName) returns (string memory, bytes32 hash, uint256) {
-            if (hash != bytes32(0)) return (hash, true);
-        } catch {}
-        return (bytes32(0), false);
+        // Raw, for the same reason the Schedule Service calls are raw. A native
+        // HTS token has no EVM bytecode either — `eth_getCode` on one returns
+        // `0x` — so a high-level call here reverts on the extcodesize check
+        // before it is made, and `try/catch` cannot see it. That would make it
+        // impossible to pledge any native Hedera token as collateral.
+        (bool ok, bytes memory data) =
+            collateral.staticcall(abi.encodeWithSelector(IERC1643.getDocument.selector, docName));
+
+        // (string uri, bytes32 hash, uint256 timestamp): the hash is the second
+        // word regardless of how long the URI is. Read it directly rather than
+        // decoding, so malformed return data cannot revert this call.
+        if (!ok || data.length < 96) return (bytes32(0), false);
+        bytes32 hash;
+        assembly {
+            hash := mload(add(data, 64))
+        }
+        if (hash == bytes32(0)) return (bytes32(0), false);
+        return (hash, true);
     }
 
     /* ─────────────────────────── transfers ─────────────────────────── */
@@ -563,25 +617,58 @@ contract RialtoMarket {
     function _pull(address token, address from, address to, uint256 amount) private {
         (bool ok, bytes memory data) =
             token.call(abi.encodeWithSelector(IERC20.transferFrom.selector, from, to, amount));
-        _check(ok, data);
+        _check(token, ok, data);
     }
 
     function _push(address token, address to, uint256 amount) private {
         (bool ok, bytes memory data) = token.call(abi.encodeWithSelector(IERC20.transfer.selector, to, amount));
-        _check(ok, data);
+        _check(token, ok, data);
     }
 
     /// @dev Pull, then report what the balance actually moved by.
     function _pullMeasured(address token, address from, address to, uint256 amount) private returns (uint256) {
-        uint256 before = IERC20(token).balanceOf(to);
+        uint256 before = _balanceOf(token, to);
         _pull(token, from, to, amount);
-        uint256 received = IERC20(token).balanceOf(to) - before;
+        uint256 received = _balanceOf(token, to) - before;
         if (received == 0) revert NothingReceived();
         return received;
     }
 
-    function _check(bool ok, bytes memory data) private pure {
+    /**
+     * @dev Raw, like every other outward call in this contract. A high-level
+     *      call carries an extcodesize check that reverts in *this* frame for
+     *      any codeless address, and on Hedera a native HTS token has no
+     *      bytecode. Reading a balance must fail with this contract's own error
+     *      rather than an uncatchable one raised before the call is made.
+     */
+    function _balanceOf(address token, address who) private view returns (uint256) {
+        (bool ok, bytes memory data) = token.staticcall(abi.encodeWithSelector(IERC20.balanceOf.selector, who));
+        if (!ok || data.length < 32) revert TransferFailed();
+        return abi.decode(data, (uint256));
+    }
+
+    /**
+     * @dev Empty returndata means "this token returns nothing on success" only
+     *      if something is actually there to answer. A call to an address with
+     *      no code also succeeds with zero bytes, and on Hedera a native HTS
+     *      token is indistinguishable from one — verified on testnet from a
+     *      deployed contract, where `balanceOf` and `decimals` on HTS USDC both
+     *      return ok with a zero-length payload and `code.length` reads 0.
+     *
+     *      Accepting that would be the worst bug this contract could have:
+     *      `award` would mark a position funded, record a lender and start the
+     *      clock while no cash had moved at all. So an empty answer is only
+     *      trusted from an address that has code.
+     *
+     *      The consequence is a real constraint rather than a workaround: the
+     *      cash leg must be an ERC-20 contract, not a raw HTS token id.
+     */
+    function _check(address token, bool ok, bytes memory data) private view {
         if (!ok) revert TransferFailed();
-        if (data.length != 0 && (data.length < 32 || !abi.decode(data, (bool)))) revert TransferFailed();
+        if (data.length == 0) {
+            if (token.code.length == 0) revert TransferFailed();
+            return;
+        }
+        if (data.length < 32 || !abi.decode(data, (bool))) revert TransferFailed();
     }
 }

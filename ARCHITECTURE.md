@@ -356,7 +356,10 @@ The factory is in active use — deployments occur regularly, including on
    for EVM verification.
 3. **HTS tokens require association before an account can receive them.**
    Rialto is designed so that **no contract ever custodies the cash token**
-   (see §5.3), which removes this requirement for the market contract.
+   (see §5.3), which removes this requirement for the market contract. It does
+   not, however, make a raw HTS token usable as the cash leg — see §3.7, where a
+   probe deployed on testnet shows an HTS token answering a contract with empty
+   returndata and zero code size.
 4. Hedera meters gas differently from Ethereum. Never trust a local estimate;
    measure on testnet.
 5. **`forge script --gas-limit` is silently ignored.** Forge treats it as an
@@ -509,14 +512,43 @@ exactly 62 days, `false` at 63 and 90 days.
 > settlement scheduled at award time — the network will refuse the expiry. The
 > constant is set by a measured network limit, not by preference. §5.2.
 
-### 3.7 Cash token
+### 3.7 Cash token — corrected
 
-| | Value |
-|---|---|
-| Testnet USDC | `0.0.429274`, HTS `FUNGIBLE_COMMON`, **6 decimals** |
+The original plan named testnet USDC (`0.0.429274`, HTS `FUNGIBLE_COMMON`,
+6 decimals) as the cash leg, on the reasoning that no Rialto contract ever holds
+it (§5.3) and so no HTS association is required. **The association argument is
+sound and the conclusion was still wrong.**
 
-Because no Rialto contract ever holds the cash token (§5.3), no contract-side
-HTS association is required.
+**A native HTS token, called from a contract, is indistinguishable from an
+address with no code.** Settled by deploying a probe on testnet rather than by
+reasoning:
+
+```
+codeSize(0x…068c1a)                 0 bytes
+contract -> HTS USDC balanceOf()    ok = true, returndata length 0
+contract -> HTS USDC decimals()     ok = true, returndata length 0
+```
+
+That is the same shape as the Schedule Service (§3.4.1) — and it is dangerous
+here in a way it was not there. `transfer` and `transferFrom` must accept empty
+returndata, because many real ERC-20s return nothing on success. A call to a
+codeless address *also* returns success with zero bytes. So an HTS cash token
+would have made `award` mark a position funded, record a lender and start the
+clock **while no cash moved at all.**
+
+`_check` now trusts an empty answer only from an address that has code
+(§5.3). The consequence is a genuine constraint rather than a workaround:
+
+> **The cash leg must be an ERC-20 contract, not a raw HTS token id.**
+
+A wrapped or bridged USDC contract qualifies; `0.0.429274` addressed directly
+does not. `DemoCash` is what the testnet lifecycle uses.
+
+**Not yet established:** whether HTS tokens answer through the redirect proxy on
+a newer consensus node, or after association, or at a different address form.
+The probe above is what this deployment does today, and the contract is written
+to be safe either way — a token that starts answering properly is accepted the
+moment it has code.
 
 ---
 

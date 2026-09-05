@@ -30,6 +30,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     uint256 public repaid;
     uint256 public defaulted;
     uint256 public cancelled;
+    uint256 public released;
 
     constructor(Mandates m, RialtoMarket mk, MockSecurity b, MockERC20 c) {
         mandates = m;
@@ -130,6 +131,14 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.prank(_borrower(who));
         try market.cancel(id) {
             cancelled++;
+        } catch {}
+    }
+
+    function releaseBid(uint256 id) public {
+        id = _id(id);
+        if (id == type(uint256).max) return;
+        try market.releaseBid(id) {
+            released++;
         } catch {}
     }
 

@@ -189,6 +189,13 @@ contract InvariantsTest is Test {
         handler.warp(2 hours);
         handler.cancel(2, 2);
         assertEq(handler.cancelled(), 1, "the request was withdrawn");
+
+        // a fourth, bid on and then abandoned, so the bidder frees its capacity
+        handler.open(0, 1e6, 1e18, 30 days, 1 hours);
+        handler.bid(0, 3, 2e6);
+        handler.warp(20 days);
+        handler.releaseBid(3);
+        assertEq(handler.released(), 1, "a stale reservation was released");
     }
 
     /// Surfaced with -vv so a run that reached nothing is visible rather than
@@ -199,5 +206,6 @@ contract InvariantsTest is Test {
         console2.log("repaid   ", handler.repaid());
         console2.log("defaulted", handler.defaulted());
         console2.log("cancelled", handler.cancelled());
+        console2.log("released ", handler.released());
     }
 }
