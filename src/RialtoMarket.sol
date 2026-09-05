@@ -165,9 +165,6 @@ contract RialtoMarket {
     /// requestId => couponId => already counted, so it cannot be counted twice.
     mapping(uint256 => mapping(uint256 => bool)) public couponRecorded;
 
-    /// How many coupons `award` looks back through when scheduling record dates.
-    uint256 private constant COUPON_SCAN = 8;
-
     /// Enough for the read, the arithmetic and two storage writes.
     uint256 private constant COUPON_GAS = 900_000;
 
@@ -229,6 +226,7 @@ contract RialtoMarket {
     error CouponOutsideLoan();
     error AlreadyRecorded();
     error NothingOwed();
+    error CouponUnschedulable();
 
     /**
      * Collateral is an arbitrary third-party contract — an ATS diamond whose
@@ -478,7 +476,6 @@ contract RialtoMarket {
         // Ask Hedera to call claim(id) itself at maturity. Best-effort by
         // construction; a failure here must never fail the award.
         _scheduleSettlement(id, r.dueAt);
-        _scheduleCoupons(id, r.collateral, r.dueAt);
     }
 
     /// @notice Repay the agreed amount and take the collateral back.
@@ -638,34 +635,33 @@ contract RialtoMarket {
     }
 
     /**
-     * @dev Ask Hedera to call `recordCoupon` for every record date that falls
-     *      inside this loan.
+     * @notice Ask Hedera to call `recordCoupon` on a coupon's record date.
      *
-     *      Without it the borrower's claim depends on somebody noticing, and the
-     *      one party with a reason to stay quiet is the one who owes it. With
-     *      it, the claim is established by the network, on the day, at the
-     *      lender's expense — which is the right way round.
+     * Separate from `award`, and it has to be. **Hedera permits at most one
+     * scheduled call per transaction**: an `award` that books its own settlement
+     * and then tries to book a coupon is rejected outright with
+     * `NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION`, and the loan does not
+     * fund at all. Found on testnet, where an award that had worked all day
+     * started reverting the moment a coupon fell inside the term.
      *
-     *      Best-effort throughout. A security with no coupons, one that answers
-     *      oddly, or a second that is already full all mean the loan simply
-     *      funds without the extra schedule, and `recordCoupon` stays open to
-     *      anyone afterwards.
+     * So the settlement is booked at award, because it is the one that must not
+     * be forgotten, and a coupon is booked by a second transaction that anyone
+     * may send. `recordCoupon` stays permissionless either way, so a coupon that
+     * nobody books is still claimable by hand.
      */
-    function _scheduleCoupons(uint256 id, address security, uint64 dueAt) private {
-        uint256 count = CouponPassThrough.tryCouponCount(security);
-        if (count == 0) return;
+    function scheduleCoupon(uint256 id, uint256 couponId) external returns (address schedule) {
+        Request memory r = _requests[id];
+        if (r.dueAt == 0) revert NotAwarded();
 
-        uint256 from = count > COUPON_SCAN ? count - COUPON_SCAN : 0;
-        for (uint256 couponId = from + 1; couponId <= count; couponId++) {
-            (bool ok, uint256 recordDate) = CouponPassThrough.tryRecordDate(security, address(this), couponId);
-            if (!ok) continue;
-            // Only dates still ahead of us, and inside the term, are worth booking.
-            if (recordDate <= block.timestamp || recordDate > dueAt) continue;
+        (bool ok, uint256 recordDate) = CouponPassThrough.tryRecordDate(r.collateral, address(this), couponId);
+        if (!ok) revert CouponUnschedulable();
+        if (recordDate <= block.timestamp || recordDate > r.dueAt) revert CouponOutsideLoan();
 
-            address schedule =
-                _schedule(recordDate + SETTLEMENT_MARGIN, COUPON_GAS, abi.encodeCall(this.recordCoupon, (id, couponId)));
-            if (schedule != address(0)) emit CouponScheduled(id, couponId, schedule, recordDate);
-        }
+        schedule = _schedule(
+            recordDate + SETTLEMENT_MARGIN, COUPON_GAS, abi.encodeCall(this.recordCoupon, (id, couponId))
+        );
+        if (schedule == address(0)) revert CouponUnschedulable();
+        emit CouponScheduled(id, couponId, schedule, recordDate);
     }
 
     /**

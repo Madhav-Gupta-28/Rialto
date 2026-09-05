@@ -201,41 +201,56 @@ contract CouponTest is Base {
 
     /* ═════════ scheduling ═════════ */
 
-    /// The claim should not depend on somebody noticing, least of all the party
-    /// who owes it.
-    function test_awardAsksHederaToRecordTheCouponOnTheRecordDate() public {
+    /**
+     * Hedera permits at most one scheduled call per transaction. An award that
+     * books its own settlement and then tries to book a coupon is rejected
+     * outright with NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION, and the
+     * loan does not fund at all.
+     *
+     * Found on testnet, where an award that had worked all day began reverting
+     * the moment a coupon fell inside the term. So award books exactly one
+     * schedule, and the coupon is booked separately.
+     */
+    function test_awardBooksExactlyOneSchedule() public {
         MockHSS hss = _installHSS();
 
         uint256 id = _open();
-        uint256 recordDate = block.timestamp + WINDOW + TERM - 1 days;
-        uint256 couponId = bond.setCouponAt(recordDate, RATE);
+        bond.setCouponAt(block.timestamp + WINDOW + TERM - 1 days, RATE);
 
         vm.prank(alice);
         market.bid(id, goodBid, "");
         vm.warp(block.timestamp + WINDOW);
         market.award(id);
 
-        // One schedule for the maturity, one for the coupon.
-        assertEq(hss.count(), 2, "both the settlement and the coupon are booked");
+        assertEq(hss.count(), 1, "one schedule per transaction, and it is the settlement");
+    }
 
+    /// The coupon is booked by its own transaction, which anyone may send.
+    function test_anyoneCanBookTheCouponRecordDate() public {
+        MockHSS hss = _installHSS();
+
+        uint256 id = _openBidAward();
+        uint256 recordDate = block.timestamp + TERM - 1 days;
+        uint256 couponId = bond.setCouponAt(recordDate, RATE);
+
+        vm.prank(stranger);
+        market.scheduleCoupon(id, couponId);
+
+        assertEq(hss.count(), 2, "settlement at award, coupon by a separate call");
         (address to, uint256 expiry,, bytes memory callData,,) = hss.scheduled(1);
         assertEq(to, address(market));
-        assertEq(expiry, recordDate + market.SETTLEMENT_MARGIN(), "booked past the record date by the margin");
+        assertEq(expiry, recordDate + market.SETTLEMENT_MARGIN());
         assertEq(callData, abi.encodeCall(RialtoMarket.recordCoupon, (id, couponId)));
     }
 
-    /// And firing it settles the obligation without anyone intervening.
+    /// And firing it establishes the borrower's claim with nobody intervening.
     function test_theNetworkRecordsTheCouponByItself() public {
         MockHSS hss = _installHSS();
 
-        uint256 id = _open();
-        uint256 recordDate = block.timestamp + WINDOW + TERM - 1 days;
-        bond.setCouponAt(recordDate, RATE);
-
-        vm.prank(alice);
-        market.bid(id, goodBid, "");
-        vm.warp(block.timestamp + WINDOW);
-        market.award(id);
+        uint256 id = _openBidAward();
+        uint256 recordDate = block.timestamp + TERM - 1 days;
+        uint256 couponId = bond.setCouponAt(recordDate, RATE);
+        market.scheduleCoupon(id, couponId);
 
         assertEq(market.manufacturedOwed(id), 0, "nothing owed yet");
 
@@ -243,6 +258,15 @@ contract CouponTest is Base {
         (bool ok,) = hss.fire(1);
 
         assertTrue(ok, "the scheduled recordCoupon executed");
-        assertGt(market.manufacturedOwed(id), 0, "the borrower's claim was established by the network");
+        assertGt(market.manufacturedOwed(id), 0, "the claim was established by the network");
+    }
+
+    function test_bookingACouponOutsideTheLoanIsRefused() public {
+        _installHSS();
+        uint256 id = _openBidAward();
+        uint256 couponId = bond.setCouponAt(market.get(id).dueAt + 10 days, RATE);
+
+        vm.expectRevert(RialtoMarket.CouponOutsideLoan.selector);
+        market.scheduleCoupon(id, couponId);
     }
 }
