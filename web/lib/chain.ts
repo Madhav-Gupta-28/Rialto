@@ -9,7 +9,7 @@ export const hederaTestnet = defineChain({
 });
 
 /** Deployed by script/Deploy.s.sol. See DEPLOYMENTS.md. */
-export const MARKET = "0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15" as const;
+export const MARKET = "0xC7C915740e670f85743304019302D8760F857a0a" as const;
 export const MANDATES = "0xb4F8cB274387A5190CeF7582004558809f8547a4" as const;
 
 /** The demo instrument: a bond issued through the live ATS factory. */

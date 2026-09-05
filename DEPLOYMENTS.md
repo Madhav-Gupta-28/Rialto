@@ -89,7 +89,8 @@ under a role-gated write, and anyone can check it without trusting us.
 | Contract | Address | Note |
 |---|---|---|
 | `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | **current**, post-audit |
-| `RialtoMarket` | [`0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15`](https://hashscan.io/testnet/contract/0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15) | **current**, post-audit (`0.0.10373523`) |
+| `RialtoMarket` | [`0xC7C915740e670f85743304019302D8760F857a0a`](https://hashscan.io/testnet/contract/0xC7C915740e670f85743304019302D8760F857a0a) | **current** (`0.0.10377546`) |
+| `RialtoMarket` (audited, wrong schedule margin) | `0x548cdcCd7386a9E64F74B2c46a5021b77c2d5C15` | superseded |
 | `Mandates` (first) | `0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e` | superseded — one owner could unbind another's agent |
 | `RialtoMarket` (second) | `0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C` | superseded — pre-audit |
 | `RialtoMarket` (first) | `0x246ECBb8A66e2390214b97CeC43143d86701c4C3` | superseded — could not reach the Schedule Service |
@@ -118,6 +119,47 @@ repayAmount  100,493.150685 dUSD
 rateBps      600           the mandate floor, computed identically off-chain
 reasoningRef 0xed0b2a16e115fc7a…
 ```
+
+## Settlement the network performed, unattended
+
+The claim is no longer that Hedera *will* call `claim` at maturity. It did.
+
+A three-minute loan was awarded and then deliberately abandoned — nobody
+watched it, nobody sent a transaction. At maturity plus the margin:
+
+```
+schedule            0.0.10377580
+executed_timestamp  1788609059.141412073
+transaction         CONTRACTCALL  SUCCESS   entity 0.0.10377546   fee 0.271 HBAR
+```
+
+```
+request #0 status   Defaulted
+lender              0x31f66ee3…   +2,100 RDN27
+liveExposure        0
+```
+
+No keeper, no bot, no cron. The market contract paid for its own settlement out
+of the HBAR balance it holds for exactly that.
+
+### It took three attempts, and the first two are the interesting part
+
+The first two schedules fired on time and **reverted**. Both cheaply — about
+0.035 HBAR, roughly thirty thousand gas — where an out-of-gas at a 400,000
+limit would have cost fifteen times that. That fee is the whole tell: a cheap
+revert is a failed `require`, not an exhausted budget.
+
+Two hypotheses were tested and discarded. Gas looked likely, and
+`eth_estimateGas` then reported 277,394 against a 400,000 budget, which sent the
+search elsewhere. The answer came from measuring instead — see §3.6b: a
+scheduled call sees a `block.timestamp` that lags the second it was scheduled
+for, so `dueAt + 1` produced a call whose own time check said the loan had not
+matured. `SETTLEMENT_MARGIN` is 60 seconds now.
+
+Nothing was ever stuck. A manual `claim` remained available throughout and was
+used to settle the two stranded positions. But they sat `Funded` past maturity,
+which is exactly the state the schedule exists to prevent — and no local test
+could have caught it, because Foundry's clock has no lag.
 
 ## The reasoning record
 
