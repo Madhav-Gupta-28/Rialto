@@ -26,7 +26,22 @@ export default function RequestPage() {
     address: MARKET, abi: marketAbi, functionName: "settlementSchedule", args: [id],
   });
 
-  if (!r) return <section className="wrap"><p className="empty">Reading the chain…</p></section>;
+  // Keep the page's shape while the chain answers, so the layout does not jump
+  // once it does.
+  if (!r) {
+    return (
+      <section className="first">
+        <div className="wrap">
+          <h1 className="display" style={{ fontSize: 38 }}>Request #{raw}</h1>
+          <p className="sub">Reading Hedera testnet…</p>
+          <div className="grid two" style={{ marginTop: 26 }}>
+            <div className="card" style={{ minHeight: 220 }} />
+            <div className="card" style={{ minHeight: 220 }} />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const open = r.status === 0;
