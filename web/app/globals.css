@@ -1,0 +1,134 @@
+/* Rialto was the banking quarter of Venice: brass, stone, ledger paper. The
+   palette comes from that rather than from the usual dapp neon. */
+:root {
+  --ground: #0b0b0c;
+  --surface: #141417;
+  --raised: #1b1b1f;
+  --line: #26262c;
+  --ink: #f0ede8;
+  --ink-2: #b9b5ae;
+  --muted: #85817a;
+  --brass: #c8a25c;
+  --brass-dim: #8a6f3e;
+  --good: #7fa87f;
+  --warn: #d0a355;
+  --bad: #c2705f;
+  --radius: 4px;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--brass); }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+.narrow { max-width: 720px; }
+
+/* ── header ── */
+header.top {
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+.top .row { display: flex; align-items: center; gap: 28px; height: 62px; }
+.mark { font-family: var(--serif); font-size: 25px; letter-spacing: 0.01em; }
+.mark span { color: var(--brass); }
+nav.links { display: flex; gap: 22px; font-size: 14px; color: var(--ink-2); }
+nav.links a.on { color: var(--brass); }
+.spacer { flex: 1; }
+
+/* ── type ── */
+h1.display { font-family: var(--serif); font-size: 46px; line-height: 1.1; margin: 0 0 14px; font-weight: 400; }
+h2.h { font-family: var(--serif); font-size: 27px; font-weight: 400; margin: 0 0 10px; }
+.lede { color: var(--ink-2); font-size: 16px; margin: 0; max-width: 62ch; }
+.eyebrow {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 10px;
+}
+.sub { color: var(--muted); font-size: 13px; }
+section { padding: 44px 0; }
+section.first { padding-top: 60px; }
+
+/* ── surfaces ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card + .card { margin-top: 14px; }
+.grid { display: grid; gap: 14px; }
+.grid.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 760px) { .grid.two { grid-template-columns: 1fr; } }
+
+/* ── data ── */
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; font-size: 14px; }
+.kv + .kv { border-top: 1px solid var(--line); }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; word-break: break-all; }
+
+.pill {
+  display: inline-block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2);
+}
+.pill.open { border-color: var(--brass-dim); color: var(--brass); }
+.pill.funded { border-color: #3c5a7a; color: #7fa6cc; }
+.pill.repaid { border-color: #3f5f3f; color: var(--good); }
+.pill.defaulted { border-color: #6b3f36; color: var(--bad); }
+.pill.cancelled { border-color: var(--line); color: var(--muted); }
+
+/* ── controls ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--brass); color: #17130a; border: 1px solid var(--brass);
+  padding: 9px 16px; border-radius: var(--radius); font-size: 14px; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+}
+.btn:hover { background: #d6b070; }
+.btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--brass-dim); color: var(--brass); background: transparent; }
+.btn.small { padding: 6px 12px; font-size: 13px; }
+
+label.field { display: block; margin-bottom: 14px; }
+label.field .name { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.04em; }
+input.text, select.text {
+  width: 100%; background: var(--ground); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 9px 11px; font-family: var(--mono); font-size: 14px;
+}
+input.text:focus, select.text:focus { outline: none; border-color: var(--brass-dim); }
+.hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+.note { font-size: 13px; color: var(--ink-2); border-left: 2px solid var(--brass-dim); padding-left: 12px; }
+.err { color: var(--bad); font-size: 13px; font-family: var(--mono); word-break: break-all; }
+.ok { color: var(--good); }
+
+table.rows { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.rows th {
+  text-align: left; font-weight: 400; font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); padding: 0 12px 10px 0; border-bottom: 1px solid var(--line);
+}
+table.rows td { padding: 13px 12px 13px 0; border-bottom: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+table.rows tr:hover td { background: var(--surface); }
+table.rows td.wide { font-family: var(--sans); }
+
+footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
+
+.empty { color: var(--muted); padding: 34px 0; text-align: center; font-size: 14px; }
