@@ -512,6 +512,38 @@ exactly 62 days, `false` at 63 and 90 days.
 > settlement scheduled at award time — the network will refuse the expiry. The
 > constant is set by a measured network limit, not by preference. §5.2.
 
+### 3.6b A scheduled call's clock runs behind
+
+`block.timestamp` inside a scheduled contract call is **not** the second it was
+scheduled for, and it is not the consensus second of the execution either. It
+lags both.
+
+Measured with a probe contract deployed for the purpose, which schedules a call
+to itself that records what the EVM reports:
+
+```
+scheduled for                          1788608600
+network's executed_timestamp           1788608600.149595560
+block.timestamp seen inside the call   1788608598      <- two seconds early
+```
+
+This matters because `claim` requires `block.timestamp > dueAt`. Scheduling at
+`dueAt + 1` therefore hands the network a call whose own time check says the
+loan has not matured, and it reverts `StillCurrent`. That is not a theoretical
+risk: it happened twice in production here, silently, while the whole unit suite
+stayed green — Foundry's clock has no such lag, so nothing local can catch it.
+
+`SETTLEMENT_MARGIN` is 60 seconds for that reason. A minute of settlement
+latency on a loan measured in days is not a cost worth optimising, and it
+absorbs far more drift than has been observed.
+
+**How the failure looked, for anyone debugging something similar.** The revert
+is cheap — about 0.035 HBAR, roughly thirty thousand gas — because it happens on
+the first `require`. An out-of-gas at a 400,000 limit would cost fifteen times
+that. The fee is the tell: a cheap revert means a failed check, not an
+exhausted budget. Two hypotheses were tested and discarded before the probe
+settled it, and both would have been avoided by measuring first.
+
 ### 3.7 Cash token — corrected
 
 The original plan named testnet USDC (`0.0.429274`, HTS `FUNGIBLE_COMMON`,
