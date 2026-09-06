@@ -25,6 +25,13 @@ export interface ReasoningRecord {
   bid: boolean;
   repayAmount: string;
   rateBps: number;
+  /**
+   * What the agent expects the market to net back off this repayment, because
+   * a coupon pays inside the term. Part of the record rather than a private
+   * adjustment: the bid is higher than the credit opinion alone would justify,
+   * and anyone reading it later is entitled to know why.
+   */
+  manufacturedOwed: string;
   reasons: string[];
   flags: string[];
   /** Milliseconds since epoch, from the agent. Not authoritative — HCS is. */

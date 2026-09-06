@@ -1,9 +1,10 @@
 import { createPublicClient, createWalletClient, http, type Hex, type PublicClient, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { hederaTestnet, config } from "./config.js";
-import { marketAbi, mandatesAbi, documentationAbi, lensAbi, STANDING, Status } from "./abi.js";
+import { marketAbi, mandatesAbi, documentationAbi, lensAbi, couponAbi, STANDING, Status } from "./abi.js";
 import type { Mandate, RequestView } from "./strategy.js";
 import type { OnChainDocument } from "./document.js";
+import type { CouponView, Instrument } from "./coupons.js";
 
 export interface Chain {
   pub: PublicClient;
@@ -119,6 +120,104 @@ export async function assetAllowed(c: Chain, owner: Hex, asset: Hex): Promise<bo
     functionName: "assetAllowed",
     args: [owner, asset],
   })) as boolean;
+}
+
+/**
+ * Every coupon the security carries, as the escrow would be credited for it.
+ *
+ * A security with no coupon facet answers nothing, which is not an error — a
+ * plain ERC-20 pledged as collateral is a supported case. It simply has no
+ * income to pass through.
+ */
+export async function readCoupons(
+  c: Chain,
+  security: Hex,
+  escrow: Hex,
+): Promise<{ coupons: CouponView[]; instrument: Instrument }> {
+  // Read the instrument from the security itself rather than from a coupon.
+  //
+  // `getCouponFor` zeroes everything but the coupon's own terms until its
+  // record date passes — the balance, the nominal value and its decimals all
+  // come back as 0 — so an agent pricing a *future* coupon off that struct
+  // prices it at nothing. Measured on the live RDN27 bond: coupon 7 before its
+  // record date returns (0, 0, 0, 0, false, ...) where coupon 6 after its own
+  // returns (4200e18, 18, 100, 0, true, ...). The nominal value is on the
+  // security the whole time.
+  let inst: Instrument = { decimals: 18, nominalValue: 0n, nominalValueDecimals: 0 };
+  try {
+    const [dec, nominal, nominalDecimals] = await Promise.all([
+      c.pub.readContract({ address: security, abi: couponAbi, functionName: "decimals" }),
+      c.pub.readContract({ address: security, abi: couponAbi, functionName: "getNominalValue" }),
+      c.pub.readContract({ address: security, abi: couponAbi, functionName: "getNominalValueDecimals" }),
+    ]);
+    inst = {
+      decimals: Number(dec as number),
+      nominalValue: nominal as bigint,
+      nominalValueDecimals: Number(nominalDecimals as number),
+    };
+  } catch {
+    // A plain ERC-20 has no nominal value, and no coupons either.
+  }
+
+  let count = 0n;
+  try {
+    count = (await c.pub.readContract({
+      address: security,
+      abi: couponAbi,
+      functionName: "getCouponCount",
+    })) as bigint;
+  } catch {
+    return { coupons: [], instrument: inst };
+  }
+
+  const out: CouponView[] = [];
+  for (let i = 1n; i <= count; i++) {
+    try {
+      const r = (await c.pub.readContract({
+        address: security,
+        abi: couponAbi,
+        functionName: "getCouponFor",
+        args: [i, escrow],
+      })) as {
+        tokenBalance: bigint;
+        decimals: number;
+        nominalValue: bigint;
+        nominalValueDecimals: bigint;
+        recordDateReached: boolean;
+        coupon: {
+          recordDate: bigint;
+          startDate: bigint;
+          endDate: bigint;
+          rate: bigint;
+          rateDecimals: number;
+        };
+        couponAmount: { numerator: bigint; denominator: bigint };
+      };
+      out.push({
+        couponId: Number(i),
+        recordDate: r.coupon.recordDate,
+        tokenBalance: r.tokenBalance,
+        numerator: r.couponAmount.numerator,
+        denominator: r.couponAmount.denominator,
+        recordDateReached: r.recordDateReached,
+        rate: r.coupon.rate,
+        rateDecimals: Number(r.coupon.rateDecimals),
+        startDate: r.coupon.startDate,
+        endDate: r.coupon.endDate,
+      });
+    } catch {
+      // One unreadable coupon is not a reason to price the rest as zero, but it
+      // is a reason not to invent a value for this one.
+    }
+  }
+  return { coupons: out, instrument: inst };
+}
+
+/** Decimals of the cash leg, so a coupon can be priced in it. */
+export async function cashDecimals(c: Chain, token: Hex): Promise<number> {
+  return Number(
+    (await c.pub.readContract({ address: token, abi: couponAbi, functionName: "decimals" })) as number,
+  );
 }
 
 /**

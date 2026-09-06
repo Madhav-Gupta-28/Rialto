@@ -63,12 +63,13 @@ export function isBlockedHost(hostname: string): boolean {
   // `::ffff:7f00:1` are the same address as `127.0.0.1`, and a resolver treats
   // them that way, so they have to be unwrapped before they are judged.
   const mapped = h.match(/^::ffff:(.+)$/);
-  if (mapped) {
+  if (mapped?.[1]) {
     const inner = mapped[1];
     const hexPair = inner.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-    const asV4 = hexPair
-      ? ((parseInt(hexPair[1], 16) << 16) | parseInt(hexPair[2], 16)) >>> 0
-      : toIPv4(inner);
+    const asV4 =
+      hexPair?.[1] && hexPair[2]
+        ? ((parseInt(hexPair[1], 16) << 16) | parseInt(hexPair[2], 16)) >>> 0
+        : toIPv4(inner);
     if (asV4 !== null && isPrivateIPv4(asV4)) return true;
   }
 
@@ -113,7 +114,7 @@ function toIPv4(host: string): number | null {
   if (last >= 2 ** (8 * (4 - nums.length))) return null;
 
   let addr = last;
-  for (let i = 0; i < nums.length; i++) addr += nums[i] * 2 ** (8 * (3 - i));
+  for (let i = 0; i < nums.length; i++) addr += (nums[i] ?? 0) * 2 ** (8 * (3 - i));
   return addr >>> 0;
 }
 

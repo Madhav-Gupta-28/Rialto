@@ -3,10 +3,12 @@ import { config } from "./config.js";
 import { Status } from "./abi.js";
 import {
   connect, readRequest, requestCount, readDocument, readMandate,
-  resolveUnderwriter, assetAllowed, committed, submitBid, bestBid, chainNow, standingOf, type Chain,
+  resolveUnderwriter, assetAllowed, committed, submitBid, bestBid, chainNow, standingOf,
+  readCoupons, cashDecimals, type Chain,
 } from "./chain.js";
 import { fetchAndVerify } from "./document.js";
-import { decide, type RequestView } from "./strategy.js";
+import { manufacturedExposure } from "./coupons.js";
+import { decide, rateBps, type RequestView } from "./strategy.js";
 import { formOpinion, RuleBasedReasoner } from "./reason.js";
 import { HcsPublisher, LocalPublisher, type Publisher, type ReasoningRecord } from "./hcs.js";
 
@@ -123,6 +125,36 @@ export async function considerRequest(
     return settled(`#${id} no bid — ${d.why}`);
   }
 
+  // A coupon paying inside the term is the lender's cost, not the borrower's.
+  // The escrow is the holder of record, so the security pays the market and the
+  // market nets it off the repayment — the underwriter hands over the principal
+  // and gets back less than the figure they bid. Quoting without it is quoting
+  // one rate and earning another, so it is added back to the ask.
+  const { coupons, instrument } = await readCoupons(c, req.collateral, config.market);
+  const exposure = manufacturedExposure(
+    coupons,
+    instrument,
+    req.bidDeadline,
+    req.bidDeadline + req.term,
+    req.collateralAmount,
+    await cashDecimals(c, req.cash),
+  );
+
+  let repayAmount = d.repayAmount;
+  if (exposure.owed > 0n) {
+    repayAmount += exposure.owed;
+    const which = [...exposure.settled, ...exposure.projected].join(", ");
+    log(
+      `  #${id} coupon ${which} pays inside the term — ` +
+        `${exposure.owed} added to the ask, which the market will net back off`,
+    );
+  }
+  for (const cid of exposure.unpriceable) {
+    log(`  #${id} coupon ${cid} falls inside the term but has no snapshot yet — cost not yet knowable`);
+  }
+
+  const rate = rateBps(req.principal, repayAmount, req.term);
+
   const record: ReasoningRecord = {
     requestId: id.toString(),
     docHash: req.docHash,
@@ -130,8 +162,9 @@ export async function considerRequest(
     underwriter,
     agent: c.account.address,
     bid: true,
-    repayAmount: d.repayAmount.toString(),
-    rateBps: d.rateBps,
+    repayAmount: repayAmount.toString(),
+    rateBps: rate,
+    manufacturedOwed: exposure.owed.toString(),
     reasons: opinion.reasons,
     flags: opinion.flags,
     publishedAt: Date.now(),
@@ -142,8 +175,8 @@ export async function considerRequest(
   const published = await pub.publish(record);
   log(`  #${id} reasoning published — ref ${published.ref.slice(0, 18)}… seq ${published.sequenceNumber}`);
 
-  const tx = await submitBid(c, id, d.repayAmount, published.ref);
-  return settled(`#${id} bid ${d.repayAmount} at ${d.rateBps}bps — ${tx}`);
+  const tx = await submitBid(c, id, repayAmount, published.ref);
+  return settled(`#${id} bid ${repayAmount} at ${rate}bps — ${tx}`);
 }
 
 async function main(): Promise<void> {

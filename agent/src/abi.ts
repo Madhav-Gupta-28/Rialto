@@ -143,3 +143,59 @@ export const lensAbi = [
 
 /** ComplianceLens.Standing, in the contract's order. */
 export const STANDING = ["Ok", "Frozen", "NotListed", "NoKyc"] as const;
+
+/** The coupon facet on an ATS security. Absent on a plain ERC-20, which is fine. */
+export const couponAbi = [
+  { type: "function", name: "getCouponCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "getCouponFor",
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }, { type: "address" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "tokenBalance", type: "uint256" },
+          { name: "decimals", type: "uint8" },
+          { name: "nominalValue", type: "uint256" },
+          { name: "nominalValueDecimals", type: "uint256" },
+          { name: "recordDateReached", type: "bool" },
+          {
+            name: "coupon",
+            type: "tuple",
+            components: [
+              { name: "recordDate", type: "uint256" },
+              { name: "executionDate", type: "uint256" },
+              { name: "startDate", type: "uint256" },
+              { name: "endDate", type: "uint256" },
+              { name: "fixingDate", type: "uint256" },
+              { name: "rate", type: "uint256" },
+              { name: "rateDecimals", type: "uint8" },
+              { name: "rateStatus", type: "uint8" },
+            ],
+          },
+          {
+            name: "couponAmount",
+            type: "tuple",
+            components: [
+              { name: "numerator", type: "uint256" },
+              { name: "denominator", type: "uint256" },
+              { name: "recordDateReached", type: "bool" },
+            ],
+          },
+          { name: "isDisabled", type: "bool" },
+        ],
+      },
+    ],
+  },
+  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "getNominalValue", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "getNominalValueDecimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+] as const;
