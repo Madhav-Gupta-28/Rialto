@@ -6,9 +6,9 @@ import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { amount } from "@/lib/amount";
 import { maxUint256, type Hex } from "viem";
-import { marketAbi, securityAbi, couponMarketAbi } from "@/lib/abi";
+import { marketAbi, securityAbi, couponMarketAbi, mandatesAbi } from "@/lib/abi";
 import { lensAbi, explain, type Obstacle } from "@/lib/lens";
-import { MARKET, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
+import { MARKET, MANDATES, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
 import { units, duration, bps, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
@@ -273,6 +273,29 @@ function Actions(props: {
 
   const needsApproval = (allowance ?? 0n) < props.principal;
 
+  // Bidding is gated by a mandate. The market resolves a bidder to the
+  // underwriter whose capital is at risk — the caller itself, or the owner that
+  // bound this key as its agent — and refuses anyone whose mandate is not
+  // active. The form was offered to every connected account regardless, so
+  // bidding from an account that had never set one up spent a fee to be told
+  // `NoMandate()` with nothing on screen explaining what a mandate is.
+  const { data: mandateOwner } = useReadContract({
+    address: MANDATES,
+    abi: mandatesAbi,
+    functionName: "ownerOfAgent",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && props.biddingOpen },
+  });
+  const bidsFor = mandateOwner && mandateOwner !== ZERO ? mandateOwner : address;
+  const { data: mandate } = useReadContract({
+    address: MANDATES,
+    abi: mandatesAbi,
+    functionName: "mandateOf",
+    args: bidsFor ? [bidsFor] : undefined,
+    query: { enabled: !!bidsFor && props.biddingOpen },
+  });
+  const noMandate = mandate !== undefined && !mandate.active;
+
   // Award moves the principal from the lender to the borrower, so it fails
   // unless the *lender* has approved the market and holds the cash. Neither is
   // visible to whoever presses the button — award is permissionless, so that is
@@ -376,9 +399,22 @@ function Actions(props: {
             </>
           )}
 
+          {noMandate && (
+            <div className="blocked" style={{ marginBottom: 12 }}>
+              <p className="blocked-title">You have no mandate</p>
+              <p className="blocked-detail">
+                A bid commits capital, so the market will only take one from an account that has set its
+                own limits first &mdash; the largest deal, the total exposure, the lowest rate it will
+                accept, and which collateral it will lend against. Set one on the{" "}
+                <a href="/mandate">Underwrite</a> page, then bid. This is the same check an agent bidding
+                on your behalf has to pass.
+              </p>
+            </div>
+          )}
+
           <button
             className="btn"
-            disabled={isPending || !parsed.ok}
+            disabled={isPending || !parsed.ok || noMandate}
             onClick={() =>
               parsed.ok &&
               write(
@@ -392,7 +428,7 @@ function Actions(props: {
               )
             }
           >
-            {isPending ? "Submitting…" : "Place bid"}
+            {isPending ? "Submitting…" : noMandate ? "Set a mandate first" : "Place bid"}
           </button>
           <p className="hint">
             A manual bid carries no reasoning reference. An agent publishes its reasoning to HCS first and
