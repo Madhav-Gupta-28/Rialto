@@ -194,6 +194,7 @@ export default function RequestPage() {
                 id={id}
                 obstacle={obstacle}
                 principal={r.principal}
+                borrower={r.borrower}
                 due={due ?? r.repayAmount}
                 term={r.term}
                 biddingOpen={biddingOpen}
@@ -242,6 +243,7 @@ function Actions(props: {
   id: bigint;
   obstacle: Obstacle | null;
   principal: bigint;
+  borrower: `0x${string}`;
   due: bigint;
   term: bigint;
   biddingOpen: boolean;
@@ -417,6 +419,17 @@ function Actions(props: {
             </button>
           )}
         </div>
+      )}
+
+      {/* Withdrawing is the borrower's alone, and hiding the control from
+          everyone else left a request with no bids looking like a dead end with
+          no explanation — the reader cannot tell whether nothing can be done or
+          whether they are simply the wrong account. Name both. */}
+      {props.awardable && !props.hasBid && !props.isBorrower && (
+        <p className="sub" style={{ marginTop: 10 }}>
+          The auction closed without a bid. Only the borrower, {short(props.borrower)}, can withdraw this
+          request and take the collateral back &mdash; you are connected as {short(address)}.
+        </p>
       )}
 
       {props.awardable && awardBlocked && (
