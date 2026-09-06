@@ -86,9 +86,8 @@ under a role-gated write, and anyone can check it without trusting us.
 
 ## The market
 
-Front end: **[rialto-lime.vercel.app](https://rialto-lime.vercel.app)**, reading
-the addresses below directly. No backend, no indexer — every figure on the page
-is a contract call.
+The front end reads these addresses directly — no backend, no indexer, so every
+figure on the page is a contract call. `cd web && npm run dev`.
 
 
 | Contract | Address | Note |

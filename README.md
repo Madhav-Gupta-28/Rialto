@@ -49,10 +49,9 @@ their entire protection, which is why it is theirs to choose.
 
 ## Live on Hedera testnet
 
-**[rialto-lime.vercel.app](https://rialto-lime.vercel.app)** — the market, reading
-these contracts directly. Connect a wallet on Hedera testnet to act on anything.
-
-Every contract below is verified and readable as source on HashScan.
+Every contract below is verified and readable as source on HashScan. The front
+end runs locally against them — `cd web && npm run dev` — and reads the chain
+directly, so there is no backend to stand up first.
 
 | | Address | |
 |---|---|---|
