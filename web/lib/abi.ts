@@ -83,6 +83,104 @@ export const marketAbi = [
   { type: "function", name: "releaseBid", stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
 ] as const;
 
+export const couponMarketAbi = [
+  {
+    type: "function",
+    name: "repaymentDue",
+    stateMutability: "view",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "manufacturedOwed",
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "couponRecorded",
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }, { type: "uint256" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "recordCoupon",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "uint256" }, { name: "couponId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "scheduleCoupon",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "uint256" }, { name: "couponId", type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "settleManufacturedPayment",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+/** The coupon facet on the ATS security itself. */
+export const couponAbi = [
+  {
+    type: "function",
+    name: "getCouponCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "getCouponFor",
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }, { type: "address" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "tokenBalance", type: "uint256" },
+          { name: "decimals", type: "uint8" },
+          { name: "nominalValue", type: "uint256" },
+          { name: "nominalValueDecimals", type: "uint256" },
+          { name: "recordDateReached", type: "bool" },
+          {
+            name: "coupon",
+            type: "tuple",
+            components: [
+              { name: "recordDate", type: "uint256" },
+              { name: "executionDate", type: "uint256" },
+              { name: "startDate", type: "uint256" },
+              { name: "endDate", type: "uint256" },
+              { name: "fixingDate", type: "uint256" },
+              { name: "rate", type: "uint256" },
+              { name: "rateDecimals", type: "uint8" },
+              { name: "rateStatus", type: "uint8" },
+            ],
+          },
+          {
+            name: "couponAmount",
+            type: "tuple",
+            components: [
+              { name: "numerator", type: "uint256" },
+              { name: "denominator", type: "uint256" },
+              { name: "recordDateReached", type: "bool" },
+            ],
+          },
+          { name: "isDisabled", type: "bool" },
+        ],
+      },
+    ],
+  },
+] as const;
+
 export const mandatesAbi = [
   {
     type: "function",

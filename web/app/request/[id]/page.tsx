@@ -6,12 +6,13 @@ import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { amount } from "@/lib/amount";
 import { maxUint256, type Hex } from "viem";
-import { marketAbi, securityAbi } from "@/lib/abi";
+import { marketAbi, securityAbi, couponMarketAbi } from "@/lib/abi";
 import { lensAbi, explain, type Obstacle } from "@/lib/lens";
 import { MARKET, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
 import { units, duration, bps, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
+import ManufacturedPayment from "@/components/ManufacturedPayment";
 import Tx from "@/components/Tx";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -32,6 +33,14 @@ export default function RequestPage() {
   // Asked before anyone presses anything. A permissioned security can be paused
   // or an account delisted between one block and the next, and the alternative
   // to asking is letting the user discover it as a bare revert.
+  // What the borrower actually hands over: the agreed repayment less any income
+  // the collateral earned while it was pledged. Showing `repayAmount` here would
+  // be the wrong number the moment a coupon is recorded.
+  const { data: due } = useReadContract({
+    address: MARKET, abi: couponMarketAbi, functionName: "repaymentDue", args: [id],
+    query: { refetchInterval: 15_000 },
+  });
+
   const { data: lens } = useReadContract({
     address: LENS, abi: lensAbi, functionName: "check", args: [id],
     query: { refetchInterval: 15_000 },
@@ -102,7 +111,11 @@ export default function RequestPage() {
                 {funded && (
                   <>
                     <Row k="Lender" v={short(r.lender)} />
-                    <Row k="Repayment due" v={`${units(r.repayAmount, CASH_DECIMALS)} dUSD`} />
+                    <Row k="Agreed repayment" v={`${units(r.repayAmount, CASH_DECIMALS)} dUSD`} />
+                    <Row
+                      k="Repayment due"
+                      v={`${units(due ?? r.repayAmount, CASH_DECIMALS)} dUSD`}
+                    />
                     <Row k="Due" v={matured ? "matured" : `in ${duration(Number(r.dueAt) - now)}`} />
                   </>
                 )}
@@ -160,6 +173,21 @@ export default function RequestPage() {
                 frozenHash={r.docHash as Hex}
                 docFromChain={r.docFromChain}
               />
+
+              {(funded || r.status === 2 || r.status === 3) && (
+                <ManufacturedPayment
+                  id={id}
+                  collateral={r.collateral as Hex}
+                  status={r.status}
+                  awardedAt={Number(r.dueAt) - Number(r.term)}
+                  dueAt={Number(r.dueAt)}
+                  agreed={r.repayAmount}
+                  onDone={() => {
+                    refetch();
+                    refetchBid();
+                  }}
+                />
+              )}
 
               <Actions
                 id={id}

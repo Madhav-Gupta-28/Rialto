@@ -142,3 +142,34 @@ table.rows td.wide { font-family: var(--sans); }
 footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
 
 .empty { color: var(--muted); padding: 34px 0; text-align: center; font-size: 14px; }
+
+/* ── the manufactured payment ────────────────────────────────
+   A coupon is a row in a ledger, so it is set as one: the figures line up in a
+   column and the subtraction is visible rather than described. */
+.coupon-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.coupon-row:last-of-type { border-bottom: none; }
+.coupon-id { margin: 0; font-size: 14px; }
+.coupon-meta { margin: 3px 0 0; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.coupon-act { flex: none; }
+.btn.sm { padding: 5px 11px; font-size: 12px; }
+.tag {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 100px; border: 1px solid var(--line);
+  color: var(--muted); white-space: nowrap;
+}
+.tag.ok { color: var(--good); border-color: rgba(127,168,127,0.4); }
+
+.ledger { border-top: 1px solid var(--line); padding-top: 12px; }
+.ledger-row {
+  display: flex; justify-content: space-between; gap: 18px;
+  font-size: 13px; color: var(--ink-2); padding: 5px 0;
+}
+.ledger-row .figure { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.ledger-row .figure.minus { color: var(--brass); }
+.ledger-row.total {
+  border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; color: var(--ink);
+}
+.ledger-row.total .figure { font-size: 15px; }
