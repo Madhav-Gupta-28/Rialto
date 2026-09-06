@@ -86,6 +86,11 @@ under a role-gated write, and anyone can check it without trusting us.
 
 ## The market
 
+Front end: **[rialto-lime.vercel.app](https://rialto-lime.vercel.app)**, reading
+the addresses below directly. No backend, no indexer — every figure on the page
+is a contract call.
+
+
 | Contract | Address | Note |
 |---|---|---|
 | `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | **current**, post-audit |
