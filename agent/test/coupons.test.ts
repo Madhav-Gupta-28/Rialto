@@ -166,3 +166,53 @@ describe("projectForPledge", () => {
     expect(projectForPledge(oneSecond, RDN27, 4200n * 10n ** 18n, 6)).toBeGreaterThan(0n);
   });
 });
+
+/**
+ * The window is a belief about when the loan will start, not a fact — award has
+ * not happened when a bid is placed. These pin what that belief does at its
+ * edges, because both failures are silent: one overcharges the borrower for
+ * income the lender never receives, the other has the lender eat a cost it did
+ * not quote.
+ */
+describe("the term window is an estimate, and its edges matter", () => {
+  const pledged = 4200n * 10n ** 18n;
+  const deadline = 1_000_000n;
+  const term = 1_000n;
+
+  it("prices a coupon inside the window it was given", () => {
+    const c = { ...REAL, recordDate: deadline + 500n };
+    expect(manufacturedExposure([c], RDN27, deadline, deadline + term, pledged, 6).owed).toBeGreaterThan(0n);
+  });
+
+  /**
+   * A late award shifts the real term forward. This coupon is inside the
+   * assumed window and outside the real one, so the agent prices it and
+   * `recordCoupon` refuses it — the borrower pays for income nobody passes on.
+   */
+  it("a coupon before a late award is priced here and would not be recorded", () => {
+    const c = { ...REAL, recordDate: deadline + 10n };
+    const assumed = manufacturedExposure([c], RDN27, deadline, deadline + term, pledged, 6);
+    const actualLateAward = manufacturedExposure([c], RDN27, deadline + 100n, deadline + 100n + term, pledged, 6);
+
+    expect(assumed.owed).toBeGreaterThan(0n);
+    expect(actualLateAward.owed).toBe(0n);
+  });
+
+  /// The mirror image: inside the real term, outside the assumed one.
+  it("a coupon past the assumed window can still fall inside the real one", () => {
+    const c = { ...REAL, recordDate: deadline + term + 50n };
+    const assumed = manufacturedExposure([c], RDN27, deadline, deadline + term, pledged, 6);
+    const actualLateAward = manufacturedExposure([c], RDN27, deadline + 100n, deadline + 100n + term, pledged, 6);
+
+    expect(assumed.owed).toBe(0n);
+    expect(actualLateAward.owed).toBeGreaterThan(0n);
+  });
+
+  /// When award is prompt, the estimate is exact. That is the ordinary case.
+  it("is exact when award lands on the deadline", () => {
+    const c = { ...REAL, recordDate: deadline + 500n };
+    const assumed = manufacturedExposure([c], RDN27, deadline, deadline + term, pledged, 6);
+    const actual = manufacturedExposure([c], RDN27, deadline, deadline + term, pledged, 6);
+    expect(assumed.owed).toBe(actual.owed);
+  });
+});

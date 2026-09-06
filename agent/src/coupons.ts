@@ -98,6 +98,12 @@ export type Exposure = {
 /**
  * Everything the lender would owe back on a loan running `from` to `to`.
  *
+ * `from` and `to` are the caller's belief about the term, not a fact. The
+ * contract's window runs from award, which has not happened when a bid is
+ * placed, so a caller pricing a bid is estimating — see the note at the call
+ * site for which way each error cuts. Membership at settlement is decided by
+ * `recordCoupon` against the request's own dates and owes nothing to this.
+ *
  * A coupon whose record date has passed is priced off the snapshot, because
  * that is what the contract will use. One still ahead is projected from its
  * terms. One that is neither — no rate, no window — is reported rather than

@@ -17,8 +17,14 @@
 # pay it — the path repayment cannot net, being a default or a coupon recorded
 # after the loan closed.
 #
-# Every call here is permissionless. None of it needs the borrower's key or the
-# lender's, because the answer is fixed by the security's own snapshot.
+# Recording and scheduling are permissionless — the answer is fixed by the
+# security's own snapshot, so any key will do and none of them pays anything.
+#
+# Settling is not. settleManufacturedPayment pulls the cash from msg.sender, and
+# the debt belongs to the lender: they hold the collateral's income and owe it
+# back. So that one step is signed with SETTLE_KEY and refuses to run unless
+# that key is the lender's, rather than quietly billing whoever happened to run
+# the script.
 #
 # This is a shell script and not a forge script on purpose. Scheduling goes
 # through the Hedera Schedule Service, a native system contract with no EVM
@@ -26,6 +32,7 @@
 # transaction before it is ever sent — with or without --skip-simulation.
 #
 #   ID=2 script/coupon.sh
+#   ID=2 SETTLE_KEY=$UNDERWRITER_KEY script/coupon.sh    # to pay as the lender
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -38,7 +45,7 @@ GET="get(uint256)((address,uint64,uint8,address,uint64,bool,address,uint64,addre
 
 field() { cast call "$M" "$GET" "$ID" --rpc-url "$R" | tr -d '()' | tr ',' '\n' | awk '{print $1}' | sed -n "$1p"; }
 
-STATUS=$(field 3); TERM=$(field 2); DUE=$(field 8); SEC=$(field 4)
+STATUS=$(field 3); TERM=$(field 2); DUE=$(field 8); SEC=$(field 4); LENDER=$(field 9)
 [ "$DUE" = "0" ] && { echo "request $ID was never awarded; there is no term to fall inside"; exit 1; }
 AWARDED=$((DUE - TERM))
 COUNT=$(cast call "$SEC" "getCouponCount()(uint256)" --rpc-url "$R")
@@ -72,9 +79,24 @@ OWED=$(cast call "$M" "manufacturedOwed(uint256)(uint256)" "$ID" --rpc-url "$R" 
 echo "manufacturedOwed  $OWED"
 echo "repaymentDue      $(cast call "$M" 'repaymentDue(uint256)(uint256)' "$ID" --rpc-url "$R" | awk '{print $1}')"
 
-# Repayment nets the obligation. A closed position cannot, so it is paid outright.
+# Repayment nets the obligation. A closed position cannot, so it is paid
+# outright — by the lender, who is the one who owes it.
 if [ "$OWED" != "0" ] && [ "$STATUS" != "1" ]; then
+  SETTLE_KEY="${SETTLE_KEY:-}"
+  if [ -z "$SETTLE_KEY" ]; then
+    echo "outstanding: $OWED, owed by $LENDER"
+    echo "  set SETTLE_KEY to that account's key to pay it"
+    exit 0
+  fi
+
+  PAYER=$(cast wallet address --private-key "$SETTLE_KEY")
+  if [ "$(echo "$PAYER" | tr 'A-Z' 'a-z')" != "$(echo "$LENDER" | tr 'A-Z' 'a-z')" ]; then
+    echo "outstanding: $OWED, owed by $LENDER"
+    echo "  SETTLE_KEY is $PAYER, which is not the lender — refusing to bill the wrong party"
+    exit 1
+  fi
+
   printf "settling outright, nothing left to net against  "
   cast send "$M" "$(cast calldata 'settleManufacturedPayment(uint256)' "$ID")" \
-    --private-key "$PRIVATE_KEY" --rpc-url "$R" --gas-limit 2000000 >/dev/null && echo ok
+    --private-key "$SETTLE_KEY" --rpc-url "$R" --gas-limit 2000000 >/dev/null && echo ok
 fi

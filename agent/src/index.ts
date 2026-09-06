@@ -130,12 +130,26 @@ export async function considerRequest(
   // market nets it off the repayment — the underwriter hands over the principal
   // and gets back less than the figure they bid. Quoting without it is quoting
   // one rate and earning another, so it is added back to the ask.
+  //
+  // The term the contract will use runs from *award*, and award has not
+  // happened yet. `award` is permissionless and the borrower wants their money,
+  // so in practice it lands on the deadline and this window is the right one;
+  // but it is an assumption and it fails in two directions worth naming. A
+  // coupon paying between the deadline and a late award is priced here and will
+  // not be recorded — the borrower pays for income the lender never receives. A
+  // coupon paying just past this window but inside the real one is recorded and
+  // was not priced — the lender eats it.
+  //
+  // Both are pricing errors and neither is a settlement error: `recordCoupon`
+  // decides membership from the request's own dates, so no money moves through
+  // the contract on this estimate. The only thing at risk is the number bid.
   const { coupons, instrument } = await readCoupons(c, req.collateral, config.market);
+  const assumedAward = req.bidDeadline;
   const exposure = manufacturedExposure(
     coupons,
     instrument,
-    req.bidDeadline,
-    req.bidDeadline + req.term,
+    assumedAward,
+    assumedAward + req.term,
     req.collateralAmount,
     await cashDecimals(c, req.cash),
   );
@@ -145,12 +159,12 @@ export async function considerRequest(
     repayAmount += exposure.owed;
     const which = [...exposure.settled, ...exposure.projected].join(", ");
     log(
-      `  #${id} coupon ${which} pays inside the term — ` +
-        `${exposure.owed} added to the ask, which the market will net back off`,
+      `  #${id} coupon ${which} pays inside the term if this awards on time — ` +
+        `${exposure.owed} added to the ask for the market to net back off`,
     );
   }
   for (const cid of exposure.unpriceable) {
-    log(`  #${id} coupon ${cid} falls inside the term but has no snapshot yet — cost not yet knowable`);
+    log(`  #${id} coupon ${cid} falls inside the term and cannot be priced — bidding without it`);
   }
 
   const rate = rateBps(req.principal, repayAmount, req.term);
