@@ -97,13 +97,6 @@ library CouponPassThrough {
         return (true, abi.decode(data, (CouponFor)).coupon.recordDate);
     }
 
-    /// @notice How many coupons a security carries, or zero if it carries none.
-    function tryCouponCount(address security) internal view returns (uint256) {
-        (bool ok, bytes memory data) = security.staticcall(abi.encodeWithSelector(IATSCoupon.getCouponCount.selector));
-        if (!ok || data.length < 32) return 0;
-        return abi.decode(data, (uint256));
-    }
-
     /**
      * @dev Raw, like every other outward call in this project. A high-level call
      *      carries an extcodesize check that reverts in the caller's frame for
