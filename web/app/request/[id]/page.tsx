@@ -194,6 +194,7 @@ export default function RequestPage() {
                 id={id}
                 obstacle={obstacle}
                 principal={r.principal}
+                due={due ?? r.repayAmount}
                 term={r.term}
                 biddingOpen={biddingOpen}
                 awardable={awardable}
@@ -241,6 +242,7 @@ function Actions(props: {
   id: bigint;
   obstacle: Obstacle | null;
   principal: bigint;
+  due: bigint;
   term: bigint;
   biddingOpen: boolean;
   awardable: boolean;
@@ -293,6 +295,25 @@ function Actions(props: {
   // button is disabled rather than hidden: the action is still the right one,
   // it just cannot land yet.
   const blocked = props.obstacle?.blocking === true;
+
+  // Repay pulls `repaymentDue` from the borrower, which is the agreed repayment
+  // less any income the collateral earned — more than the principal on any loan
+  // that charges a fee. So approving exactly what you borrowed is not enough to
+  // get back out of the loan, and the gap only shows up as a bare TransferFailed
+  // after the network has charged for the attempt. Worse, the approve control
+  // lived in the bidding panel, which a borrower at repayment time no longer
+  // sees: they could read why it failed and still have no way to fix it.
+  const { data: borrowerCash } = useReadContract({
+    address: CASH,
+    abi: securityAbi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && props.isBorrower && props.funded && !props.matured },
+  });
+
+  const repayShortAllowance = allowance !== undefined && allowance < props.due;
+  const repayShortCash = borrowerCash !== undefined && borrowerCash < props.due;
+  const repayShort = repayShortAllowance || repayShortCash;
   const send = (fn: "award" | "repay" | "claim" | "cancel" | "releaseBid") =>
     write({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
 
@@ -430,9 +451,58 @@ function Actions(props: {
       )}
 
       {props.funded && !props.matured && props.isBorrower && (
-        <button className="btn" disabled={isPending || blocked} onClick={() => send("repay")}>
-          {blocked ? "Repayment is blocked" : "Repay and take the collateral back"}
-        </button>
+        <>
+          <button
+            className="btn"
+            disabled={isPending || blocked || repayShort}
+            onClick={() => send("repay")}
+          >
+            {blocked
+              ? "Repayment is blocked"
+              : repayShortCash
+                ? "You are short of dUSD"
+                : repayShortAllowance
+                  ? "Approve dUSD first"
+                  : "Repay and take the collateral back"}
+          </button>
+
+          {!blocked && repayShort && (
+            <div className="blocked" style={{ marginTop: 14 }}>
+              <p className="blocked-title">
+                {repayShortCash ? "Not enough dUSD to repay" : "The market cannot take the repayment"}
+              </p>
+              <p className="blocked-detail">
+                Repaying hands over {units(props.due, CASH_DECIMALS)} dUSD &mdash; the agreed repayment
+                less any income the collateral earned, which is more than the{" "}
+                {units(props.principal, CASH_DECIMALS)} you borrowed.{" "}
+                {repayShortCash
+                  ? `You hold ${units(borrowerCash ?? 0n, CASH_DECIMALS)}.`
+                  : `You have approved the market for ${units(allowance ?? 0n, CASH_DECIMALS)}.`}{" "}
+                Until that is fixed the collateral stays escrowed and the loan keeps running.
+              </p>
+              {repayShortAllowance && !repayShortCash && (
+                <button
+                  className="btn ghost sm"
+                  style={{ marginTop: 12 }}
+                  disabled={isPending}
+                  onClick={() =>
+                    write(
+                      {
+                        address: CASH,
+                        abi: securityAbi,
+                        functionName: "approve",
+                        args: [MARKET, maxUint256],
+                      },
+                      { onSuccess: props.onDone },
+                    )
+                  }
+                >
+                  Approve dUSD
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {props.funded && !props.matured && !props.isBorrower && (
