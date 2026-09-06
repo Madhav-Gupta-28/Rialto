@@ -1,10 +1,23 @@
+/**
+ * Format a raw token amount for display.
+ *
+ * `dp` is a floor, not a ceiling. Truncating to two places turns a 30-minute
+ * loan's entire fee - 0.006850 dUSD on a 2,000 principal - into "2,000", which
+ * reads as a zero-interest loan and is the one number on the page a lender
+ * cares about. So when `dp` would hide a non-zero fraction completely, the
+ * fraction is shown in full instead of being cut down to a first significant
+ * digit that would still understate it. A round amount still prints round.
+ */
 export function units(v: bigint, decimals: number, dp = 2): string {
   const neg = v < 0n;
   const a = neg ? -v : v;
   const base = 10n ** BigInt(decimals);
   const whole = a / base;
-  const frac = a % base;
-  const fracStr = frac.toString().padStart(decimals, "0").slice(0, dp).replace(/0+$/, "");
+
+  const full = (a % base).toString().padStart(decimals, "0");
+  const cut = full.slice(0, Math.min(dp, decimals));
+  const fracStr = (/[1-9]/.test(cut) ? cut : full).replace(/0+$/, "");
+
   const w = whole.toLocaleString("en-US");
   return `${neg ? "-" : ""}${w}${fracStr ? "." + fracStr : ""}`;
 }
