@@ -182,6 +182,7 @@ export default function RequestPage() {
                   awardedAt={Number(r.dueAt) - Number(r.term)}
                   dueAt={Number(r.dueAt)}
                   agreed={r.repayAmount}
+                  lender={r.lender as Hex}
                   onDone={() => {
                     refetch();
                     refetchBid();

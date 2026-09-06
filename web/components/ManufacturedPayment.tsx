@@ -1,10 +1,10 @@
 "use client";
 
-import { useReadContract, useReadContracts } from "wagmi";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { couponAbi, couponMarketAbi } from "@/lib/abi";
 import { MARKET, CASH_DECIMALS, BOND_DECIMALS } from "@/lib/chain";
-import { units } from "@/lib/format";
+import { units, short } from "@/lib/format";
 import { couponsInTerm, settlementLedger, type RawCoupon } from "@/lib/coupons";
 import Tx from "./Tx";
 
@@ -25,6 +25,7 @@ export default function ManufacturedPayment({
   awardedAt,
   dueAt,
   agreed,
+  lender,
   onDone,
 }: {
   id: bigint;
@@ -33,9 +34,17 @@ export default function ManufacturedPayment({
   awardedAt: number;
   dueAt: number;
   agreed: bigint;
+  lender: `0x${string}`;
   onDone: () => void;
 }) {
   const { write, data: hash, error, isPending } = useWrite();
+  const { address } = useAccount();
+
+  // `settleManufacturedPayment` pulls the cash from whoever sends it, and the
+  // debt is the lender's — they hold the income the collateral earned. Anyone
+  // else pressing this would be making the borrower a gift out of their own
+  // pocket, so the button belongs to one account and says so to everybody else.
+  const isLender = !!address && address.toLowerCase() === lender.toLowerCase();
 
   const { data: owed } = useReadContract({
     address: MARKET,
@@ -180,11 +189,14 @@ export default function ManufacturedPayment({
                 <>
                   <p className="note" style={{ margin: "14px 0 12px" }}>
                     This position has already settled, so there is nothing left to net against. The
-                    lender still owes the income the collateral earned, and pays it here.
+                    lender still owes the income the collateral earned.{" "}
+                    {isLender
+                      ? "That is you."
+                      : `It is owed by ${short(lender)}, and comes out of their pocket — not yours.`}
                   </p>
                   <button
                     className="btn"
-                    disabled={isPending}
+                    disabled={isPending || !isLender}
                     onClick={() =>
                       write(
                         {
@@ -197,7 +209,7 @@ export default function ManufacturedPayment({
                       )
                     }
                   >
-                    Pay the manufactured payment
+                    {isLender ? "Pay the manufactured payment" : "Only the lender can pay this"}
                   </button>
                 </>
               )}
