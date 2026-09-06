@@ -206,6 +206,9 @@ async function main(): Promise<void> {
   log("");
 
   const seen = new Set<string>();
+  let lastError = "";
+  let repeats = 0;
+
   for (;;) {
     try {
       const n = await requestCount(c);
@@ -215,11 +218,44 @@ async function main(): Promise<void> {
         if (outcome.notable) log(outcome.line);
         if (outcome.settled) seen.add(i.toString());
       }
+      if (lastError) {
+        log(`  recovered after ${repeats + 1} failed ${repeats === 0 ? "poll" : "polls"}`);
+        lastError = "";
+        repeats = 0;
+      }
     } catch (e) {
-      log(`! ${e instanceof Error ? e.message : String(e)}`);
+      // A public RPC having a bad minute fails every poll, and each failure
+      // repeated in full scrolls away everything the agent actually did. Say it
+      // once, then keep count.
+      const msg = brief(e);
+      if (msg === lastError) {
+        repeats += 1;
+        if (repeats % 12 === 0) log(`! still failing after ${repeats + 1} tries — ${msg}`);
+      } else {
+        log(`! ${msg}`);
+        lastError = msg;
+        repeats = 0;
+      }
     }
     await new Promise((r) => setTimeout(r, config.pollMs));
   }
+}
+
+/**
+ * One line out of an error, not twenty.
+ *
+ * A viem error's `message` is a whole report — the JSON-RPC request body, the
+ * raw call arguments, a docs link, the library version. That is useful once and
+ * unreadable on every poll, so prefer the `shortMessage` viem puts on its own
+ * errors and fall back to the first line of anything else.
+ */
+function brief(e: unknown): string {
+  if (e && typeof e === "object" && "shortMessage" in e) {
+    const s = (e as { shortMessage?: unknown }).shortMessage;
+    if (typeof s === "string" && s.trim()) return s.trim();
+  }
+  const text = e instanceof Error ? e.message : String(e);
+  return (text.split("\n")[0] ?? text).trim();
 }
 
 function label(b: Hex): string {
