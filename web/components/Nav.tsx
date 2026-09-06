@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { hederaTestnet } from "@/lib/chain";
 import { short } from "@/lib/format";
 
@@ -14,13 +14,16 @@ const links = [
 
 export default function Nav() {
   const path = usePathname();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const chainId = useChainId();
   const { switchChain } = useSwitchChain();
 
-  const wrongChain = isConnected && chainId !== hederaTestnet.id;
+  // `useAccount().chainId`, not `useChainId()`. The latter reports the chain the
+  // *config* is on, and this config declares one chain — so it answered 296 for
+  // a wallet sitting on Flare, this button never appeared, and the mismatch
+  // surfaced as a signing error with nothing offering to fix it.
+  const wrongChain = isConnected && chainId !== undefined && chainId !== hederaTestnet.id;
 
   return (
     <header className="top">
