@@ -418,6 +418,38 @@ The borrower never sees a coupon payment and never chases one. They simply owe
 less, which is how a repo settles a manufactured payment and why the obligation
 needs no enforcement.
 
+## The agent prices what it will have to hand back
+
+A coupon paying inside the term is the lender's cost. The escrow is the holder
+of record, so the security pays the market and the market nets it off the
+repayment — the underwriter parts with the principal and receives back less than
+the number they bid.
+
+Two requests, minutes apart, same borrower and same collateral. The only
+difference is that a coupon falls inside the second one's term.
+
+```
+#1  no coupon in the term
+    agent bid                        2,000.006850 dUSD   (600 bps)
+
+#2  coupon 7 pays inside the term, still ahead of its record date
+    agent projected                     28.767123 dUSD
+    agent bid                        2,028.773973 dUSD   = 2,000.006850 + 28.767123
+
+    ...record date passes, nobody intervenes...
+
+    Hedera recorded                     28.767123 dUSD
+    repaymentDue                     2,000.006850 dUSD   <- back to #1's number
+```
+
+The underwriter earns the rate its credit opinion actually called for, and the
+borrower keeps the income on a bond they still own. Neither party had to notice.
+
+The projection is the interesting part. At bid time the coupon has not paid, so
+the security reports nothing about it — no balance, no nominal value (§3.10). It
+is priced from its own terms instead, and the number that came out before the
+fact is the number the network produced after it, to the unit.
+
 ## Compliance, shown not described
 
 Four controls, each exercised against a live position on the current market and

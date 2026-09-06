@@ -718,6 +718,57 @@ Only account *creation* needs this. Once the account exists, every later call
 from that key goes through the relay normally. It is worth knowing before a
 demo, because the failure is a plain `status 0` with no reason attached.
 
+### 3.10 A coupon tells you nothing about itself until it pays
+
+`getCouponFor` zeroes every field but the coupon's own dates until its record
+date passes. Not just the balance — the *instrument's* terms too. Measured on
+the live RDN27 bond, the same call for two coupons on the same security:
+
+```
+coupon 7, record date ahead     (0,       0,  0,   0, false, (dates…), (0, 0, false), false)
+coupon 6, record date behind    (4200e18, 18, 100, 0, true,  (dates…), (num, den, true), false)
+                                 balance  dec nom
+```
+
+The consequence is not obvious and it is expensive. An underwriting agent bids
+*before* a loan is awarded, so every coupon that will fall inside the term is
+still ahead of it, and pricing one off this struct prices it at zero. The first
+version of Rialto's agent did exactly that and reported every real case as
+"cost not yet knowable" — correct, useless, and quiet about it.
+
+The coupon's own terms *are* populated the whole time, and the nominal value
+lives on the security rather than on the coupon:
+
+```
+getNominalValue()           100
+getNominalValueDecimals()   0
+```
+
+So a future coupon is projected from `nominal x rate x window / year` instead,
+which is the calculation the security performs later. Checked both ways against
+the chain: the projection returns 57.534246 for a 4,200 RDN27 pledge, and that
+is exactly what Hedera recorded when the record date arrived.
+
+**And it composes.** On request #2 the agent projected 28.767123 before bidding
+and added it to its ask, bidding 2,028.773973 where its credit opinion alone
+called for 2,000.006850. The network then recorded 28.767123 unattended, and
+`repaymentDue` came back at 2,000.006850 — the underwriter earns the rate it
+actually quoted, and the borrower keeps the income on the bond they still own.
+
+### 3.11 A forge script cannot schedule
+
+`scheduleCoupon` reaches the Hedera Schedule Service, a native system contract
+with no EVM bytecode. Forge simulates a script locally before broadcasting, that
+simulation has nothing at `0x…016b` to call, `_schedule` reads the empty answer
+as "no scheduling here" and returns zero — so the script reverts
+`CouponUnschedulable` and the transaction is never sent. `--skip-simulation`
+does not help; the same local run happens for gas estimation.
+
+Confirmed by contrast: the identical call succeeds through `eth_call` against
+the real network, returning a schedule address, and succeeds again through
+`cast send`. This is why `script/coupon.sh` is a shell script — the same reason
+DEPLOYMENTS.md says to use `cast` and not `forge script` against ATS.
+
 ---
 
 ## 4. System architecture
