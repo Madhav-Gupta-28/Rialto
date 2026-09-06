@@ -47,19 +47,53 @@ their entire protection, which is why it is theirs to choose.
 - **HCS** gives every underwriting opinion an ordered, timestamped record that
   is published *before* the outcome is known.
 
+## Live on Hedera testnet
+
+Every contract below is verified and readable as source on HashScan.
+
+| | Address | |
+|---|---|---|
+| Market | [`0x9040986D…21a4`](https://hashscan.io/testnet/contract/0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4) | `0.0.10382007` |
+| Mandates | [`0xb4F8cB27…47a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | `0.0.10373522` |
+| Compliance lens | [`0xd65580d3…3246`](https://hashscan.io/testnet/contract/0xd65580d345aE3c13Ce58586C0891b67198f23246) | `0.0.10382009` |
+| The bond, through the live ATS factory | [`0x52Ea050F…2114`](https://hashscan.io/testnet/contract/0x52Ea050Fe77A303b1A61fe15d8894892aFF02114) | `RDN27`, `0.0.10367236` |
+| Reasoning record | [HCS topic `0.0.10367534`](https://hashscan.io/testnet/topic/0.0.10367534) | every opinion, before its outcome |
+
+`DEPLOYMENTS.md` is the ledger: every lifecycle, every compliance control and
+every coupon in this repository was run against those addresses, and the figures
+there were read back off the chain rather than written down.
+
 ## Repository
 
 | Path | What it is |
 |---|---|
 | `ARCHITECTURE.md` | The complete specification. Every claim verified on-chain, with reproduction commands. |
-| `src/` | Contracts |
-| `test/` | Foundry tests, at both 6- and 18-decimal cash |
+| `DEPLOYMENTS.md` | What is deployed, and the transactions proving each claim. |
+| `src/` | The contracts: market, mandates, compliance lens, coupon pass-through. |
+| `test/` | Foundry tests, at both 6- and 18-decimal cash. |
+| `agent/` | The underwriting agent: reads the document, forms an opinion, publishes it to HCS, bids. |
+| `web/` | The market's front end — borrow, bid, settle, and the manufactured payment. |
+| `script/` | Deployment and lifecycle drivers. |
+| `docs/` | The demo instrument's offering document. |
 
 ## Build
 
 ```bash
-forge build
-forge test -vv
+forge build && forge test          # 238 contract tests
+
+cd agent && npm install && npm test # 98 agent tests
+cd web   && npm install && npm test # 30 web tests
+```
+
+Copy `.env.example` to `.env` and fill it in to run anything against testnet.
+A key that has never been used has no Hedera account yet, so fund it once with
+`node agent/scripts/fund-account.mjs <address> 5` before anything else — a plain
+value transfer cannot create one (`ARCHITECTURE.md` §3.9).
+
+```bash
+cd web && npm run dev              # the market, against testnet
+cd agent && npm start              # the underwriting agent
+ID=<n> script/coupon.sh            # the manufactured payment on one request
 ```
 
 ## Licence
