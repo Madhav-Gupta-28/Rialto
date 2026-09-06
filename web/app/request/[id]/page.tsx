@@ -197,6 +197,7 @@ export default function RequestPage() {
                 term={r.term}
                 biddingOpen={biddingOpen}
                 awardable={awardable}
+                lender={(best?.[0] ?? ZERO) as Hex}
                 funded={funded}
                 matured={matured}
                 isBorrower={isBorrower}
@@ -243,6 +244,7 @@ function Actions(props: {
   term: bigint;
   biddingOpen: boolean;
   awardable: boolean;
+  lender: `0x${string}`;
   funded: boolean;
   matured: boolean;
   isBorrower: boolean;
@@ -266,6 +268,26 @@ function Actions(props: {
   });
 
   const needsApproval = (allowance ?? 0n) < props.principal;
+
+  // Award moves the principal from the lender to the borrower, so it fails
+  // unless the *lender* has approved the market and holds the cash. Neither is
+  // visible to whoever presses the button — award is permissionless, so that is
+  // usually not the lender — and the failure arrives as a bare TransferFailed
+  // from inside the token. Read both and say which one is short.
+  const { data: lenderAllowance } = useReadContract({
+    address: CASH, abi: securityAbi, functionName: "allowance",
+    args: [props.lender, MARKET],
+    query: { enabled: props.awardable && props.lender !== ZERO },
+  });
+  const { data: lenderBalance } = useReadContract({
+    address: CASH, abi: securityAbi, functionName: "balanceOf",
+    args: [props.lender],
+    query: { enabled: props.awardable && props.lender !== ZERO },
+  });
+
+  const shortAllowance = lenderAllowance !== undefined && lenderAllowance < props.principal;
+  const shortBalance = lenderBalance !== undefined && lenderBalance < props.principal;
+  const awardBlocked = shortAllowance || shortBalance;
 
   // A blocked settlement is refused by the security, not by the market, so the
   // button is disabled rather than hidden: the action is still the right one,
@@ -359,8 +381,8 @@ function Actions(props: {
       {props.awardable && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {props.hasBid && (
-            <button className="btn" disabled={isPending} onClick={() => send("award")}>
-              Award
+            <button className="btn" disabled={isPending || awardBlocked} onClick={() => send("award")}>
+              {awardBlocked ? "The lender cannot fund this" : "Award"}
             </button>
           )}
           {props.isBorrower && (
@@ -376,7 +398,24 @@ function Actions(props: {
         </div>
       )}
 
-      {props.awardable && (
+      {props.awardable && awardBlocked && (
+        <div className="blocked" style={{ marginTop: 12 }}>
+          <p className="blocked-title">
+            {shortBalance ? "The lender is short of cash" : "The lender has not approved enough"}
+          </p>
+          <p className="blocked-detail">
+            Award moves {units(props.principal, CASH_DECIMALS)} dUSD from {short(props.lender)} to the
+            borrower.{" "}
+            {shortBalance
+              ? `That account holds ${units(lenderBalance ?? 0n, CASH_DECIMALS)}.`
+              : `It has approved the market for ${units(lenderAllowance ?? 0n, CASH_DECIMALS)}.`}{" "}
+            Until the lender fixes that, this cannot settle — the collateral stays escrowed and the
+            request stays open. Past the award window anyone may release the bid or withdraw the request.
+          </p>
+        </div>
+      )}
+
+      {props.awardable && !awardBlocked && (
         <p className="hint">
           Award is permissionless — the outcome is already determined by state, so there is nothing for a
           caller to influence.
