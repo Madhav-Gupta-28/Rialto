@@ -55,6 +55,46 @@ contract InvariantsTest is Test {
      * to lender at repayment, both inside a single call. A balance sitting in
      * this contract would mean a transfer half-happened.
      */
+    /**
+     * The netting rule, stated as an identity rather than a story.
+     *
+     * `repaymentDue` is the agreed repayment less what the lender owes back,
+     * floored at zero — and capped, so a coupon larger than the whole repayment
+     * cannot turn into a negative bill or silently erase the excess. This is the
+     * exact rule that was wrong once: netting used to zero the obligation
+     * whatever its size, handing the lender the difference.
+     */
+    function invariant_repaymentDueIsTheAgreedAmountLessTheCoupon() public view {
+        for (uint256 id; id < market.requests(); id++) {
+            Request memory r = market.get(id);
+            uint256 owed = market.manufacturedOwed(id);
+            uint256 netted = owed > r.repayAmount ? r.repayAmount : owed;
+            assertEq(market.repaymentDue(id), r.repayAmount - netted, "netting identity");
+        }
+    }
+
+    /// A borrower can never be billed more than they agreed to repay.
+    function invariant_theBorrowerNeverOwesMoreThanAgreed() public view {
+        for (uint256 id; id < market.requests(); id++) {
+            assertLe(market.repaymentDue(id), market.get(id).repayAmount, "the bill cannot grow");
+        }
+    }
+
+    /**
+     * A coupon can only be counted against a request that was actually awarded,
+     * and only for income inside its own term. Nothing else may accrue an
+     * obligation — an open or cancelled request has no term for income to fall
+     * inside of.
+     */
+    function invariant_onlyAwardedRequestsCarryAnObligation() public view {
+        for (uint256 id; id < market.requests(); id++) {
+            Request memory r = market.get(id);
+            if (r.dueAt == 0) {
+                assertEq(market.manufacturedOwed(id), 0, "a request that never awarded owes nothing");
+            }
+        }
+    }
+
     function invariant_marketNeverHoldsCash() public view {
         assertEq(cash.balanceOf(address(market)), 0, "the market is not a custodian of cash");
     }
@@ -196,6 +236,17 @@ contract InvariantsTest is Test {
         handler.warp(20 days);
         handler.releaseBid(3);
         assertEq(handler.released(), 1, "a stale reservation was released");
+        // a coupon recorded against a live position, so the netting invariants
+        // are checked against a non-zero obligation rather than a vacuous one
+        handler.open(0, 1e6, 1e18, 30 days, 1 hours);
+        uint256 withCoupon = market.requests() - 1;
+        handler.bid(0, withCoupon, 2e6);
+        handler.warp(2 hours);
+        handler.award(withCoupon);
+        handler.warp(1 days);
+        handler.coupon(withCoupon, 1e15);
+        assertGt(handler.couponsRecorded(), 0, "a coupon was recorded");
+        assertGt(market.manufacturedOwed(withCoupon), 0, "and it left an obligation to net off");
     }
 
     /// Surfaced with -vv so a run that reached nothing is visible rather than
@@ -207,5 +258,6 @@ contract InvariantsTest is Test {
         console2.log("defaulted", handler.defaulted());
         console2.log("cancelled", handler.cancelled());
         console2.log("released ", handler.released());
+        console2.log("coupons  ", handler.couponsRecorded());
     }
 }

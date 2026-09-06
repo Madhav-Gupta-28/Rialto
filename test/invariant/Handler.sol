@@ -31,6 +31,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     uint256 public defaulted;
     uint256 public cancelled;
     uint256 public released;
+    uint256 public couponsRecorded;
 
     constructor(Mandates m, RialtoMarket mk, MockSecurity b, MockERC20 c) {
         mandates = m;
@@ -114,6 +115,41 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.prank(_borrower(who));
         try market.repay(id) {
             repaid++;
+        } catch {}
+    }
+
+    /**
+     * Declare a coupon and record it against a live request.
+     *
+     * Without this the fuzzer never produces a non-zero `manufacturedOwed`, and
+     * every invariant about settlement has only ever been checked on the easy
+     * half of the arithmetic — the half where the netting term is zero.
+     *
+     * The rate is bounded rather than free so that both sides of the netting
+     * rule get exercised: small coupons that net off cleanly, and ones large
+     * enough to exceed the whole repayment and leave a residue.
+     */
+    function coupon(uint256 id, uint256 rate) public {
+        id = _id(id);
+        if (id == type(uint256).max) return;
+
+        Request memory r = market.get(id);
+        if (r.dueAt == 0) return;
+
+        uint64 awardedAt = r.dueAt - r.term;
+        if (block.timestamp < awardedAt) return;
+
+        // The record date has to be inside the term *and* already behind us:
+        // the security only fixes an entitlement once it passes, so a coupon
+        // dated in the future makes `recordCoupon` revert and the whole action
+        // becomes a silent no-op. Getting this wrong is how the netting
+        // invariants end up passing without ever seeing a non-zero obligation.
+        uint256 latest = block.timestamp < r.dueAt ? block.timestamp : r.dueAt;
+        uint256 recordDate = bound(rate, awardedAt, latest);
+
+        uint256 couponId = bond.setCouponAt(recordDate, bound(uint256(keccak256(abi.encode(rate))), 0, 2e18));
+        try market.recordCoupon(id, couponId) {
+            couponsRecorded++;
         } catch {}
     }
 
