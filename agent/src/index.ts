@@ -202,6 +202,16 @@ export async function considerRequest(
     publishedAt: Date.now(),
   };
 
+  // The deadline was checked before any of this, but forming an opinion costs
+  // a model call and the requests are worked through one at a time — so on a
+  // busy market the auction can close while this one is still thinking.
+  // Publishing anyway spends an HCS message to explain a bid that will revert
+  // AuctionClosed, and leaves a reasoning record on the topic that no bid ever
+  // carries. Observed live: #13 published seq 27, then reverted 0x36b6b46d.
+  if ((await chainNow(c)) >= req.bidDeadline) {
+    return settled(`#${id} auction closed while forming an opinion — not published`, false);
+  }
+
   // Published before the bid, and therefore before anyone knows who won. That
   // ordering is what makes the reasoning non-retrofittable.
   const published = await pub.publish(record);
