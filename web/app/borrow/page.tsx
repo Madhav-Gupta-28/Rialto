@@ -47,39 +47,76 @@ export default function Borrow() {
   const enough = c.ok && (balance ?? 0n) >= c.value;
   const valid = enough && pr.ok && t.ok && w.ok;
 
-  return (
-    <section className="first">
-      <div className="wrap narrow">
-        <p className="eyebrow">Borrower</p>
-        <h1 className="display">Raise cash against a security.</h1>
-        <p className="lede">
-          You fix the principal, the term, and how much collateral you are pledging — which <em>is</em> the
-          haircut you are proposing. Underwriters answer with a repayment. You never name a price.
-        </p>
+  // The ratio the borrower is proposing. There is no price feed anywhere in
+  // this project, so this is not a loan-to-value — it is units of a security
+  // against units of cash, and it is the entire protection the lender gets.
+  const proposal = c.ok && pr.ok && pr.value > 0n
+    ? {
+        ratio: Number((c.value * 10_000n) / (pr.value * 10n ** BigInt(BOND_DECIMALS - CASH_DECIMALS))) / 10_000,
+        pledged: units(c.value, BOND_DECIMALS, 0),
+        sought: units(pr.value, CASH_DECIMALS),
+      }
+    : null;
 
-        <div className="card" style={{ marginTop: 30 }}>
-          <p className="eyebrow">The instrument</p>
-          <div className="kv">
-            <span className="k">Collateral</span>
-            <span className="v">
-              <a href={hashscan(BOND)} target="_blank" rel="noreferrer">RDN27</a> · ATS security
-            </span>
+  return (
+    <>
+      <section className="band void" style={{ paddingTop: 104, paddingBottom: 56 }}>
+        <div className="wrap narrow">
+          <p className="eyebrow">Borrower</p>
+          <h1 className="claim" style={{ fontSize: "clamp(30px,4.4vw,50px)" }}>
+            Name the terms.
+            <br />
+            <span className="dim">Let underwriters answer.</span>
+          </h1>
+          <p className="lede" style={{ maxWidth: "54ch" }}>
+            You fix the principal, the term, and how much collateral you are pledging. You never name a
+            price, and neither does the contract — the auction does that, once.
+          </p>
+        </div>
+      </section>
+
+    <section style={{ paddingTop: 40 }}>
+      <div className="wrap narrow">
+        <div className="panel" style={{ marginBottom: 22 }}>
+          <div className="head">
+            <p className="eyebrow" style={{ margin: 0 }}>The instrument</p>
+            <a className="sub" href={hashscan(BOND)} target="_blank" rel="noreferrer"
+               style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+              RDN27 · ATS security ↗
+            </a>
           </div>
-          <div className="kv">
-            <span className="k">Your balance</span>
-            <span className="v">{balance !== undefined ? units(balance, BOND_DECIMALS, 0) : "—"}</span>
+          <div className="body">
+            <div className="reads">
+              <div>
+                <span className="k">Your balance</span>
+                <span className="v">
+                  {balance !== undefined ? `${units(balance, BOND_DECIMALS, 0)} RDN27` : "—"}
+                </span>
+              </div>
+              <div>
+                <span className="k">Control list</span>
+                <span className="v">
+                  {listed === undefined ? "—" : listed
+                    ? <span className="state settled">admitted</span>
+                    : <span className="state blocked">not listed</span>}
+                </span>
+              </div>
+              <div>
+                <span className="k">Escrow approval</span>
+                <span className="v">
+                  {!isConnected ? "—" : needsApproval
+                    ? <span className="state pending">required</span>
+                    : <span className="state settled">granted</span>}
+                </span>
+              </div>
+            </div>
+            {listed === false && (
+              <p className="note" style={{ marginTop: 16 }}>
+                This security is permissioned. Until the issuer admits you, you cannot hold or pledge it —
+                the ERC-3643 constraint that makes ordinary AMMs incompatible with regulated assets.
+              </p>
+            )}
           </div>
-          <div className="kv">
-            <span className="k">On the control list</span>
-            <span className="v">{listed === undefined ? "—" : listed ? "yes" : "no"}</span>
-          </div>
-          {listed === false && (
-            <p className="note" style={{ marginTop: 12 }}>
-              This security is permissioned. Until the issuer adds you to its control list you cannot hold
-              or pledge it — the ERC-3643 constraint that makes ordinary AMMs incompatible with regulated
-              assets.
-            </p>
-          )}
         </div>
 
         <div className="card">
@@ -92,7 +129,19 @@ export default function Borrow() {
             <Field name="Auction length (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
           </div>
 
-          <p className="note" style={{ margin: "6px 0 18px" }}>
+          {proposal && (
+            <div className={`proposal${enough ? "" : " short"}`}>
+              <span className="big">{proposal.ratio.toFixed(2)}×</span>
+              <p>
+                {proposal.pledged} RDN27 pledged against{" "}
+                {proposal.sought} dUSD. <strong>That ratio is the whole of the
+                lender&rsquo;s protection</strong> — there is no margin call to top it up later, and no
+                oracle to argue with. Pledge more and you will be bid a lower repayment.
+              </p>
+            </div>
+          )}
+
+          <p className="note" style={{ margin: "18px 0" }}>
             The document hash is read off the security itself, not taken on your word. That is what binds a
             bid to the bytes the issuer published.
           </p>
@@ -139,6 +188,7 @@ export default function Borrow() {
         </div>
       </div>
     </section>
+    </>
   );
 }
 

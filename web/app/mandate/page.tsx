@@ -56,43 +56,111 @@ export default function MandatePage() {
   const agentOk = agent.trim() === "" || /^0x[0-9a-fA-F]{40}$/.test(agent.trim());
   const mandateValid = pd.ok && tot.ok && rate.ok && term.ok && agentOk;
 
-  return (
-    <section className="first">
-      <div className="wrap narrow">
-        <p className="eyebrow">Underwriter</p>
-        <h1 className="display">Set the limits, then bid inside them.</h1>
-        <p className="lede">
-          A mandate is authority, and it lives on-chain where it cannot be exceeded. The strategy an agent
-          follows is judgement — soft, editable, and deliberately not here. Leave the agent empty and you
-          bid by hand; the market cannot tell the two apart.
-        </p>
+  // Committed capital, against the ceiling its owner set. Standing bids count
+  // too: holding the best bid on twenty auctions passes every limit check
+  // separately and breaches the ceiling the moment they all award.
+  const ceiling = active ? mandate!.maxTotal : 0n;
+  const committed = (live ?? 0n) + (reserved ?? 0n);
+  const pct = (x: bigint) => (ceiling > 0n ? Math.min(Number((x * 10_000n) / ceiling) / 100, 100) : 0);
+  const headroom = ceiling > committed ? ceiling - committed : 0n;
 
+  return (
+    <>
+      <section className="band void" style={{ paddingTop: 104, paddingBottom: 56 }}>
+        <div className="wrap narrow">
+          <p className="eyebrow">Underwriter</p>
+          <h1 className="claim" style={{ fontSize: "clamp(30px,4.4vw,50px)" }}>
+            Authority on chain.
+            <br />
+            <span className="dim">Judgement anywhere else.</span>
+          </h1>
+          <p className="lede" style={{ maxWidth: "54ch" }}>
+            A mandate is what an agent may do with your money, and the market enforces it. The strategy it
+            follows is a paragraph of English you can change any time. Leave the agent empty and you bid by
+            hand — the contract cannot tell the two apart.
+          </p>
+        </div>
+      </section>
+
+    <section style={{ paddingTop: 40 }}>
+      <div className="wrap narrow">
         {isConnected && (
-          <div className="card" style={{ marginTop: 30 }}>
-            <p className="eyebrow">Where you stand</p>
-            <div className="kv"><span className="k">Mandate</span><span className="v">{active ? "active" : "none"}</span></div>
-            {active && (
-              <>
-                <div className="kv">
-                  <span className="k">Agent</span>
-                  <span className="v">{mandate!.agent === ZERO ? "none — bidding by hand" : short(mandate!.agent)}</span>
-                </div>
-                <div className="kv"><span className="k">Largest single deal</span><span className="v">{units(mandate!.maxPerDeal, CASH_DECIMALS)} dUSD</span></div>
-                <div className="kv"><span className="k">Ceiling</span><span className="v">{units(mandate!.maxTotal, CASH_DECIMALS)} dUSD</span></div>
-                <div className="kv"><span className="k">Minimum rate</span><span className="v">{bps(Number(mandate!.minRateBps))}</span></div>
-                <div className="kv"><span className="k">Longest term</span><span className="v">{duration(mandate!.maxTerm)}</span></div>
-              </>
-            )}
-            <div className="kv"><span className="k">Funded positions</span><span className="v">{units(live ?? 0n, CASH_DECIMALS)} dUSD</span></div>
-            <div className="kv">
-              <span className="k">Committed to standing bids</span>
-              <span className="v">{units(reserved ?? 0n, CASH_DECIMALS)} dUSD</span>
+          <div className="panel" style={{ marginBottom: 22 }}>
+            <div className="head">
+              <p className="eyebrow" style={{ margin: 0 }}>Where you stand</p>
+              {active
+                ? <span className="state settled">mandate active</span>
+                : <span className="state pending">no mandate</span>}
             </div>
-            <p className="note" style={{ marginTop: 12 }}>
-              Standing bids count against the ceiling as well as funded ones. Without that, holding the best
-              bid on twenty auctions would pass every limit check separately and breach it the moment they
-              all awarded.
-            </p>
+            <div className="body">
+              {active && (
+                <div className="meter" style={{ marginBottom: 22 }}>
+                  <div className="track">
+                    <div className="fill live" style={{ width: `${pct(live ?? 0n)}%` }} />
+                    <div className="fill held" style={{ width: `${pct(reserved ?? 0n)}%` }} />
+                  </div>
+                  <div className="legend">
+                    <span><i style={{ background: "var(--settled)" }} />
+                      funded {units(live ?? 0n, CASH_DECIMALS)}</span>
+                    <span><i style={{ background: "var(--pending)" }} />
+                      standing bids {units(reserved ?? 0n, CASH_DECIMALS)}</span>
+                    <span style={{ marginLeft: "auto" }}>
+                      {units(headroom, CASH_DECIMALS)} of {units(ceiling, CASH_DECIMALS)} left
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="reads">
+                {active ? (
+                  <>
+                    <div>
+                      <span className="k">Agent</span>
+                      <span className="v">
+                        {mandate!.agent === ZERO
+                          ? <span className="sub" style={{ fontSize: 13 }}>none — you bid by hand</span>
+                          : short(mandate!.agent)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="k">Largest single deal</span>
+                      <span className="v">{units(mandate!.maxPerDeal, CASH_DECIMALS)} dUSD</span>
+                    </div>
+                    <div>
+                      <span className="k">Minimum rate</span>
+                      <span className="v">{bps(Number(mandate!.minRateBps))}</span>
+                    </div>
+                    <div>
+                      <span className="k">Longest term</span>
+                      <span className="v">{duration(mandate!.maxTerm)}</span>
+                    </div>
+                    <div>
+                      <span className="k">RDN27 as collateral</span>
+                      <span className="v">
+                        {allowed
+                          ? <span className="state settled">allowed</span>
+                          : <span className="state blocked">not listed</span>}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <span className="k">Status</span>
+                    <span className="v sub" style={{ fontSize: 13 }}>
+                      Nothing set. The market will refuse any bid you place.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {active && (
+                <p className="note" style={{ marginTop: 16 }}>
+                  Standing bids count against the ceiling as well as funded ones. Without that, holding the
+                  best bid on twenty auctions would pass every limit check separately and breach it the
+                  moment they all awarded.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -189,6 +257,7 @@ export default function MandatePage() {
         </p>
       </div>
     </section>
+    </>
   );
 }
 
