@@ -17,7 +17,7 @@ export default function Home() {
       {/* the offer */}
       <section className="band void" style={{ paddingTop: 132, paddingBottom: 96 }}>
         <div className="wrap">
-          <h1 className="claim" style={{ maxWidth: "13ch" }}>
+          <h1 className="claim" style={{ maxWidth: "20ch" }}>
             Cash today.
             <br />
             <span className="dim">The bond stays yours.</span>

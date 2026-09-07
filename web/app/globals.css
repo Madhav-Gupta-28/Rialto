@@ -231,7 +231,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
   text-wrap: balance;
 }
 
-.claim .dim { color: var(--muted); }
+.claim .dim { color: inherit; }
 
 
 .stat-strip { display: flex; flex-wrap: wrap; gap: 0; margin-top: 44px; border-top: 1px solid var(--line); }
