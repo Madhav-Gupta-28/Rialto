@@ -1,12 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { couponAbi, couponMarketAbi } from "@/lib/abi";
 import { MARKET, CASH_DECIMALS, BOND_DECIMALS } from "@/lib/chain";
 import { units, short } from "@/lib/format";
 import { couponsInTerm, settlementLedger, type RawCoupon } from "@/lib/coupons";
-import Tx from "./Tx";
+import TxDialog from "./TxDialog";
 
 /**
  * A coupon belongs to whoever holds the security on its record date, and while
@@ -37,7 +38,8 @@ export default function ManufacturedPayment({
   lender: `0x${string}`;
   onDone: () => void;
 }) {
-  const { write, data: hash, error, isPending } = useWrite();
+  const { write, data: hash, error, isPending, reset } = useWrite();
+  const [action, setAction] = useState<{ label: string; done: string }>({ label: "", done: "" });
   const { address } = useAccount();
 
   // `settleManufacturedPayment` pulls the cash from whoever sends it, and the
@@ -97,11 +99,23 @@ export default function ManufacturedPayment({
   const settled = status === 2 || status === 3; // Repaid or Defaulted
   const nothingToShow = inTerm.length === 0 && owedNow === 0n;
 
-  const send = (fn: "recordCoupon" | "scheduleCoupon", couponId: number) =>
+  const send = (fn: "recordCoupon" | "scheduleCoupon", couponId: number) => {
+    setAction(
+      fn === "scheduleCoupon"
+        ? {
+            label: `Hand coupon #${couponId} to the network`,
+            done: "Hedera will run this on the record date, whether or not anyone is watching. Nothing else is needed from you.",
+          }
+        : {
+            label: `Record coupon #${couponId}`,
+            done: "The amount comes from the security's own snapshot, so it is the same figure whoever records it.",
+          },
+    );
     write(
       { address: MARKET, abi: couponMarketAbi, functionName: fn, args: [id, BigInt(couponId)] },
       { onSuccess: onDone },
     );
+  };
 
   return (
     <div className="card">
@@ -197,7 +211,11 @@ export default function ManufacturedPayment({
                   <button
                     className="btn"
                     disabled={isPending || !isLender}
-                    onClick={() =>
+                    onClick={() => {
+                      setAction({
+                        label: "Pay the manufactured payment",
+                        done: "The income the collateral earned while it was pledged is back with the borrower. Nothing is outstanding on this position.",
+                      });
                       write(
                         {
                           address: MARKET,
@@ -206,8 +224,8 @@ export default function ManufacturedPayment({
                           args: [id],
                         },
                         { onSuccess: onDone },
-                      )
-                    }
+                      );
+                    }}
                   >
                     {isLender ? "Pay the manufactured payment" : "Only the lender can pay this"}
                   </button>
@@ -216,9 +234,7 @@ export default function ManufacturedPayment({
             </>
           )}
 
-          <div style={{ marginTop: 12 }}>
-            <Tx hash={hash} error={error} />
-          </div>
+          <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
         </>
       )}
     </div>

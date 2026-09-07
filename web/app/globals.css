@@ -285,3 +285,50 @@ footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: va
 .proposal p { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
 .proposal.short { border-left-color: var(--blocked); }
 .proposal.short .big { color: var(--blocked); }
+
+/* ── the transaction dialog ─────────────────────────────────────── */
+
+.scrim {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
+  background: rgba(4, 4, 6, 0.72); backdrop-filter: blur(3px);
+  animation: scrim-in .18s ease;
+}
+@keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
+
+.dialog {
+  width: 100%; max-width: 460px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  animation: dialog-in .22s cubic-bezier(.2, .7, .3, 1);
+}
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) {
+  .scrim, .dialog { animation: none; }
+}
+
+.dialog > header {
+  padding: 16px 22px; border-bottom: 1px solid var(--line); background: #0d0d10;
+  display: flex; align-items: center; gap: 12px;
+}
+.dialog > header .t { font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
+                      text-transform: uppercase; color: var(--muted); }
+.dialog > .body { padding: 22px; }
+.dialog h3 { font-family: var(--serif); font-size: 25px; line-height: 1.16; color: var(--ink);
+             margin: 0 0 10px; font-weight: 400; }
+.dialog p { font-size: 15px; color: var(--ink-2); margin: 0 0 12px; }
+.dialog p:last-child { margin-bottom: 0; }
+.dialog .why { border-left: 2px solid var(--line); padding-left: 14px; margin: 16px 0 0; }
+.dialog .why .sel { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+.dialog > footer { padding: 16px 22px; border-top: 1px solid var(--line); display: flex;
+                   justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dialog.ok > header { border-bottom-color: var(--settled); }
+.dialog.bad > header { border-bottom-color: var(--blocked); }
+
+/* Three dots, because a spinner implies a progress it does not know. */
+.waiting { display: inline-flex; gap: 4px; align-items: center; }
+.waiting i { width: 5px; height: 5px; border-radius: 50%; background: var(--pending);
+             animation: pulse 1.15s ease-in-out infinite; }
+.waiting i:nth-child(2) { animation-delay: .16s }
+.waiting i:nth-child(3) { animation-delay: .32s }
+@keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .waiting i { animation: none; opacity: .7 } }

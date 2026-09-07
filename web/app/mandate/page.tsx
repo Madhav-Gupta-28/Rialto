@@ -7,7 +7,7 @@ import { amount, days as parseDays, basisPoints } from "@/lib/amount";
 import { marketAbi, mandatesAbi } from "@/lib/abi";
 import { MANDATES, MARKET, BOND, CASH_DECIMALS, hashscan } from "@/lib/chain";
 import { units, short, duration, bps } from "@/lib/format";
-import Tx from "@/components/Tx";
+import TxDialog from "@/components/TxDialog";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -22,7 +22,8 @@ const ZERO = "0x0000000000000000000000000000000000000000";
  */
 export default function MandatePage() {
   const { address, isConnected } = useAccount();
-  const { write, data: hash, error, isPending } = useWrite();
+  const { write, data: hash, error, isPending, reset } = useWrite();
+  const [action, setAction] = useState<{ label: string; done: string }>({ label: "", done: "" });
 
   const [agent, setAgent] = useState("");
   const [perDeal, setPerDeal] = useState("500000");
@@ -191,8 +192,12 @@ export default function MandatePage() {
               <button
                 className="btn"
                 disabled={isPending || !mandateValid}
-                onClick={() =>
-                  pd.ok && tot.ok && rate.ok && term.ok &&
+                onClick={() => {
+                  if (!(pd.ok && tot.ok && rate.ok && term.ok)) return;
+                  setAction({
+                    label: active ? "Replace the mandate" : "Set the mandate",
+                    done: "Your limits are on chain. The market will refuse any bid that breaches them, including one from your own agent.",
+                  });
                   write(
                     {
                       address: MANDATES,
@@ -207,8 +212,8 @@ export default function MandatePage() {
                       ],
                     },
                     { onSuccess: () => refetch() },
-                  )
-                }
+                  );
+                }}
               >
                 {isPending ? "Signing…" : active ? "Replace mandate" : "Set mandate"}
               </button>
@@ -217,12 +222,13 @@ export default function MandatePage() {
                 <button
                   className="btn ghost"
                   disabled={isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    setAction({ label: "Allow RDN27", done: "Your mandate now lists this security, so you can bid on requests collateralised by it." });
                     write(
                       { address: MANDATES, abi: mandatesAbi, functionName: "allowAsset", args: [BOND, true] },
                       { onSuccess: () => refetchAllowed() },
-                    )
-                  }
+                    );
+                  }}
                 >
                   Allow RDN27 as collateral
                 </button>
@@ -232,9 +238,10 @@ export default function MandatePage() {
                 <button
                   className="btn ghost"
                   disabled={isPending}
-                  onClick={() =>
-                    write({ address: MANDATES, abi: mandatesAbi, functionName: "revoke" }, { onSuccess: () => refetch() })
-                  }
+                  onClick={() => {
+                    setAction({ label: "Stand down", done: "The mandate is revoked and any agent key it named is unbound. Your funded positions are untouched." });
+                    write({ address: MANDATES, abi: mandatesAbi, functionName: "revoke" }, { onSuccess: () => refetch() });
+                  }}
                 >
                   Stand down
                 </button>
@@ -246,9 +253,7 @@ export default function MandatePage() {
             <p className="hint">You cannot bid on a security your mandate does not list.</p>
           )}
 
-          <div style={{ marginTop: 14 }}>
-            <Tx hash={hash} error={error} />
-          </div>
+          <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
         </div>
 
         <p className="sub" style={{ marginTop: 20 }}>

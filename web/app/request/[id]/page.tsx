@@ -13,7 +13,7 @@ import { units, duration, bps, rateLabel, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
 import ManufacturedPayment from "@/components/ManufacturedPayment";
-import Tx from "@/components/Tx";
+import TxDialog from "@/components/TxDialog";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -256,7 +256,8 @@ function Actions(props: {
   onDone: () => void;
 }) {
   const { address, isConnected } = useAccount();
-  const { write, data: hash, error, isPending } = useWrite();
+  const { write, data: hash, error, isPending, reset } = useWrite();
+  const [action, setAction] = useState<{ label: string; done: string }>({ label: "", done: "" });
   const [repay, setRepay] = useState("");
 
   // Validated once, used everywhere: the hint, the disabled state and the
@@ -339,8 +340,20 @@ function Actions(props: {
   const repayShortAllowance = allowance !== undefined && allowance < props.due;
   const repayShortCash = borrowerCash !== undefined && borrowerCash < props.due;
   const repayShort = repayShortAllowance || repayShortCash;
-  const send = (fn: "award" | "repay" | "claim" | "cancel" | "releaseBid") =>
+  // What each action is called, and what is true once it lands. The dialog says
+  // the second sentence, because "success" tells nobody anything.
+  const OUTCOME: Record<string, { label: string; done: string }> = {
+    award: { label: "Award the request", done: "The cash moved from the lender to the borrower, and Hedera has been asked to settle this loan itself at maturity." },
+    repay: { label: "Repay", done: "The loan is closed and the collateral is back with the borrower. The pending settlement call was cancelled in the same transaction." },
+    claim: { label: "Claim the collateral", done: "The loan defaulted and the collateral went to the lender — never to whoever pressed this." },
+    cancel: { label: "Withdraw the request", done: "The request is withdrawn and the collateral is back with the borrower." },
+    releaseBid: { label: "Release the stale bid", done: "The bidder's committed capacity is free again. The collateral was not touched." },
+  };
+
+  const send = (fn: "award" | "repay" | "claim" | "cancel" | "releaseBid") => {
+    setAction(OUTCOME[fn] ?? { label: fn, done: "" });
     write({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
+  };
 
   if (!isConnected) {
     return (
@@ -390,9 +403,10 @@ function Actions(props: {
                 className="btn ghost"
                 style={{ marginBottom: 12 }}
                 disabled={isPending}
-                onClick={() =>
-                  write({ address: CASH, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] })
-                }
+                onClick={() => {
+                  setAction({ label: "Approve dUSD", done: "The market can now move cash on your behalf when a deal settles." });
+                  write({ address: CASH, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] });
+                }}
               >
                 Approve dUSD
               </button>
@@ -415,8 +429,9 @@ function Actions(props: {
           <button
             className="btn"
             disabled={isPending || !parsed.ok || noMandate}
-            onClick={() =>
-              parsed.ok &&
+            onClick={() => {
+              if (!parsed.ok) return;
+              setAction({ label: "Place the bid", done: "Your bid is standing. It wins unless somebody bids a lower repayment before the auction closes." });
               write(
                 {
                   address: MARKET,
@@ -425,8 +440,8 @@ function Actions(props: {
                   args: [props.id, parsed.value, `0x${"00".repeat(32)}` as Hex],
                 },
                 { onSuccess: props.onDone },
-              )
-            }
+              );
+            }}
           >
             {isPending ? "Submitting…" : noMandate ? "Set a mandate first" : "Place bid"}
           </button>
@@ -534,7 +549,8 @@ function Actions(props: {
                   className="btn ghost sm"
                   style={{ marginTop: 12 }}
                   disabled={isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    setAction({ label: "Approve dUSD", done: "You can now repay. The market will take exactly the repayment due and no more." });
                     write(
                       {
                         address: CASH,
@@ -543,8 +559,8 @@ function Actions(props: {
                         args: [MARKET, maxUint256],
                       },
                       { onSuccess: props.onDone },
-                    )
-                  }
+                    );
+                  }}
                 >
                   Approve dUSD
                 </button>
@@ -571,7 +587,7 @@ function Actions(props: {
       )}
 
       <div style={{ marginTop: 14 }}>
-        <Tx hash={hash} error={error} />
+        <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
       </div>
     </div>
   );

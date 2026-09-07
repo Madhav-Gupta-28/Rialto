@@ -8,14 +8,15 @@ import { maxUint256, stringToHex, type Hex } from "viem";
 import { marketAbi, securityAbi } from "@/lib/abi";
 import { MARKET, BOND, CASH, CASH_DECIMALS, BOND_DECIMALS, hashscan } from "@/lib/chain";
 import { units } from "@/lib/format";
-import Tx from "@/components/Tx";
+import TxDialog from "@/components/TxDialog";
 
 const PROSPECTUS = stringToHex("prospectus", { size: 32 });
 const ZERO32 = `0x${"00".repeat(32)}` as Hex;
 
 export default function Borrow() {
   const { address, isConnected } = useAccount();
-  const { write, data: hash, error, isPending } = useWrite();
+  const { write, data: hash, error, isPending, reset } = useWrite();
+  const [action, setAction] = useState<{ label: string; done: string }>({ label: "", done: "" });
 
   const [collateral, setCollateral] = useState("10500");
   const [principal, setPrincipal] = useState("10000");
@@ -152,9 +153,10 @@ export default function Borrow() {
             <button
               className="btn"
               disabled={isPending}
-              onClick={() =>
-                write({ address: BOND, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] })
-              }
+              onClick={() => {
+                setAction({ label: "Approve the escrow", done: "The market can now take RDN27 into escrow when you open a request." });
+                write({ address: BOND, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] });
+              }}
             >
               {isPending ? "Approving…" : "Approve the escrow to hold RDN27"}
             </button>
@@ -162,16 +164,16 @@ export default function Borrow() {
             <button
               className="btn"
               disabled={isPending || !valid}
-              onClick={() =>
-                valid &&
-                c.ok && pr.ok && t.ok && w.ok &&
+              onClick={() => {
+                if (!(valid && c.ok && pr.ok && t.ok && w.ok)) return;
+                setAction({ label: "Open the request", done: "Your collateral is escrowed and the auction is live. Underwriters can bid until it closes." });
                 write({
                   address: MARKET,
                   abi: marketAbi,
                   functionName: "open",
                   args: [BOND, c.value, CASH, pr.value, t.value, w.value, PROSPECTUS, ZERO32],
-                })
-              }
+                });
+              }}
             >
               {isPending ? "Opening…" : "Open the request"}
             </button>
@@ -182,9 +184,7 @@ export default function Borrow() {
               You hold {units(balance ?? 0n, BOND_DECIMALS, 0)} RDN27 — not enough for that pledge.
             </p>
           )}
-          <div style={{ marginTop: 14 }}>
-            <Tx hash={hash} error={error} />
-          </div>
+          <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
         </div>
       </div>
     </section>
