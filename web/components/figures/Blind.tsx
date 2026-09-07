@@ -46,7 +46,7 @@ export default function Blind() {
             <line
               key={t}
               x1={8 + t * 9} y1={30} x2={8 + t * 9} y2={30}
-              stroke="var(--settled)" strokeWidth={2.4} strokeLinecap="round"
+              stroke="var(--ink)" strokeWidth={2.4} strokeLinecap="round"
               style={{
                 transition: `y1 .4s ease ${t * 22}ms, y2 .4s ease ${t * 22}ms`,
                 ...(on ? { y1: 30 - ((t * 37) % 17) - 3, y2: 30 + ((t * 23) % 15) + 3 } : {}),
@@ -65,7 +65,7 @@ export default function Blind() {
           <line x1={8} y1={30} x2={312} y2={30} stroke="var(--line)" strokeWidth={1} />
           {[8, 150, 300].map((x, k) => (
             <circle
-              key={x} cx={x} cy={30} r={5} fill="var(--pending)"
+              key={x} cx={x} cy={30} r={5} fill="var(--paper)" stroke="var(--ink)" strokeWidth={1.6}
               style={{ opacity: on ? 1 : 0, transition: `opacity .4s ease ${k * 260}ms` }}
             />
           ))}

@@ -1,36 +1,41 @@
 /* Rialto was the banking quarter of Venice: brass, stone, ledger paper. The
    palette comes from that rather than from the usual dapp neon. */
 :root {
-  /* Rialto was the banking quarter of Venice, and the palette is its paper:
-     a warm off-white ground, near-black ink, and colour reserved entirely for
-     reporting the state of something on chain. */
-  --void: #ffffff;
-  --ground: #f4f2ed;
-  --surface: #ffffff;
-  --raised: #eae7df;
-  --line: #ddd9d0;
+  /* Two colours. Paper and ink — nothing else in the whole application.
+     Everything that reads as a third tone is ink at reduced opacity, so a
+     surface, a rule and a caption are all the same pigment applied lightly. */
+  --paper: #f4f2ed;
   --ink: #14130f;
-  --ink-2: #4a4740;
-  --muted: #6f6a61;
-  --brass: #7d5f26;
-  --brass-dim: #b39a68;
-  --good: #2f6b4f;
-  --warn: #8a6512;
-  --bad: #9c3d2c;
 
-  /* Darkened against the earlier dark ground so they still carry on paper. */
-  --settled: #2f6b4f;
-  --settled-bg: #e8f0ea;
-  --blocked: #9c3d2c;
-  --blocked-bg: #f7e9e5;
-  --pending: #8a6512;
-  --pending-bg: #f6efdd;
+  /* Ink, thinned. Text first, then the marks that structure a page. */
+  --ink-2: rgba(20, 19, 15, 0.74);
+  --muted: rgba(20, 19, 15, 0.62);
+  --line: rgba(20, 19, 15, 0.14);
+  --line-soft: rgba(20, 19, 15, 0.08);
+  --wash: rgba(20, 19, 15, 0.035);
+  --wash-2: rgba(20, 19, 15, 0.06);
 
-  /* Kept so the alternating bands have a second surface to sit on. */
-  --paper: #ffffff;
-  --paper-ink: #14130f;
-  --paper-line: #ddd9d0;
-  --paper-muted: #7d786f;
+  /* Kept as names so nothing has to change at the call sites. They all resolve
+     to the same two colours; state is carried by weight, not by hue. */
+  --void: var(--paper);
+  --ground: var(--paper);
+  --surface: var(--paper);
+  --raised: var(--wash);
+  --brass: var(--ink);
+  --brass-dim: var(--muted);
+  --good: var(--ink);
+  --warn: var(--ink);
+  --bad: var(--ink);
+  --settled: var(--ink);
+  --settled-bg: transparent;
+  --blocked: var(--ink);
+  --blocked-bg: var(--ink);
+  --pending: var(--ink);
+  --pending-bg: transparent;
+  --paper-ink: var(--ink);
+  --paper-line: var(--line);
+  --paper-muted: var(--muted);
+
   --radius: 4px;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -60,7 +65,7 @@ a:hover { color: var(--brass); }
 header.top {
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--ground) 90%, transparent);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
   backdrop-filter: blur(8px);
 }
 .top .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 68px; }
@@ -105,20 +110,23 @@ section.first { padding-top: 60px; }
   display: inline-block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2);
 }
-.pill.open { border-color: var(--brass-dim); color: var(--brass); }
-.pill.funded { border-color: #3c5a7a; color: #7fa6cc; }
-.pill.repaid { border-color: #3f5f3f; color: var(--good); }
-.pill.defaulted { border-color: #6b3f36; color: var(--bad); }
+/* Five states, one pigment. A live loan is filled because it is the only row
+   still moving; a default is dashed because it is a settlement that was
+   interrupted; a cancelled request recedes because nothing happened. */
+.pill.open { border-color: var(--ink); color: var(--ink); }
+.pill.funded { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.pill.repaid { border-color: var(--ink); color: var(--ink-2); }
+.pill.defaulted { border-style: dashed; border-color: var(--ink); color: var(--ink); }
 .pill.cancelled { border-color: var(--line); color: var(--muted); }
 
 /* ── controls ── */
 .btn {
   display: inline-flex; align-items: center; gap: 8px;
-  background: var(--ink); color: var(--ground); border: 1px solid var(--ink);
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
   padding: 9px 16px; border-radius: var(--radius); font-size: 14px; font-weight: 500;
   cursor: pointer; font-family: inherit;
 }
-.btn:hover { background: #2b2822; border-color: #2b2822; }
+.btn:hover { opacity: .86; }
 .btn:disabled { opacity: 0.42; cursor: not-allowed; }
 .btn.ghost { background: transparent; color: var(--ink); border-color: var(--ink); }
 .btn.ghost:hover { background: var(--raised); color: var(--ink); border-color: var(--ink); }
@@ -206,8 +214,8 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
    ───────────────────────────────────────────────────────────── */
 
 .band { padding: 104px 0; border-bottom: 1px solid var(--line); }
-.band.void { background: var(--ground); }
-.band.paper { background: var(--surface); }
+.band.void { background: var(--paper); }
+.band.paper { background: var(--paper); }
 
 
 
@@ -223,7 +231,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
   text-wrap: balance;
 }
 
-.claim .dim { color: #8a857c; }
+.claim .dim { color: var(--muted); }
 
 
 .stat-strip { display: flex; flex-wrap: wrap; gap: 0; margin-top: 44px; border-top: 1px solid var(--line); }
@@ -242,13 +250,16 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 
 .state { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
          text-transform: uppercase; padding: 3px 8px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
-.state.settled { color: var(--settled); border-color: var(--settled); background: var(--settled-bg); }
-.state.blocked { color: var(--blocked); border-color: var(--blocked); background: var(--blocked-bg); }
-.state.pending { color: var(--pending); border-color: var(--pending); background: var(--pending-bg); }
+/* The compliance list is four of these and then one that is not. Without hue
+   the distinction has to be weight: an outline for a call that went through,
+   a solid fill for the one the issuer stopped. */
+.state.settled { color: var(--ink-2); border-color: var(--line); background: transparent; }
+.state.blocked { color: var(--paper); border-color: var(--ink); background: var(--ink); }
+.state.pending { color: var(--ink); border-color: var(--ink); border-style: dashed; background: transparent; }
 
 .figure { border: 1px solid var(--line); border-radius: 3px; background: var(--surface); padding: 26px 26px 20px; margin: 34px 0 0; }
-.band.void .figure { background: var(--surface); }
-.band.paper .figure { background: var(--ground); }
+.band.void .figure { background: var(--wash); }
+.band.paper .figure { background: var(--wash); }
 .figure figcaption { font-size: 14px; color: var(--muted); margin-top: 20px; text-align: center; }
 
 
@@ -264,7 +275,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 .panel { border: 1px solid var(--line); border-radius: 3px; background: var(--surface); }
 .panel > .head {
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
-  padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--ground);
+  padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--wash);
 }
 .panel > .body { padding: 20px; }
 .panel > .body > *:first-child { margin-top: 0; }
@@ -288,7 +299,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 
 /* What the borrower is actually proposing, stated back to them. */
 .proposal { border: 1px solid var(--line); border-left: 2px solid var(--ink); border-radius: 0 3px 3px 0;
-            background: var(--ground); padding: 18px 22px; margin: 22px 0 0; }
+            background: var(--wash); padding: 18px 22px; margin: 22px 0 0; }
 .proposal .big { font-family: var(--mono); font-size: 26px; color: var(--ink); letter-spacing: -.02em;
                  font-variant-numeric: tabular-nums; }
 .proposal p { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
@@ -299,13 +310,13 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 
 .scrim {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
-  background: rgba(20, 19, 15, 0.42); backdrop-filter: blur(3px);
+  background: rgba(20, 19, 15, 0.45); backdrop-filter: blur(3px);
   animation: scrim-in .18s ease;
 }
 @keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
 
 .dialog {
-  width: 100%; max-width: 460px; background: var(--surface);
+  width: 100%; max-width: 460px; background: var(--paper);
   border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
   box-shadow: 0 20px 50px rgba(20, 19, 15, .18);
   animation: dialog-in .22s cubic-bezier(.2, .7, .3, 1);
@@ -316,7 +327,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 }
 
 .dialog > header {
-  padding: 16px 22px; border-bottom: 1px solid var(--line); background: var(--ground);
+  padding: 16px 22px; border-bottom: 1px solid var(--line); background: var(--wash);
   display: flex; align-items: center; gap: 12px;
 }
 .dialog > header .t { font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
@@ -346,7 +357,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 @media (prefers-reduced-motion: reduce) { @keyframes phase-in { from { opacity: 1 } to { opacity: 1 } } }
 
 /* Figures that sit inside a dark band need their own ground, not the band's. */
-.hero-figure { border: 1px solid var(--line); border-radius: 3px; background: var(--surface);
+.hero-figure { border: 1px solid var(--line); border-radius: 3px; background: transparent;
                padding: 24px 22px 16px; margin-top: 46px; }
 
 /* ── /how ───────────────────────────────────────────────────────── */
@@ -378,7 +389,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
 
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 26px 0 0; }
 .pair > div { border: 1px solid var(--line); background: var(--surface); padding: 22px 24px; }
-.band.paper .pair > div { background: var(--ground); }
+.band.paper .pair > div { background: var(--wash); }
 .pair h4 { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .06em;
            text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
 .pair p { font-size: 14.5px; margin: 0; }

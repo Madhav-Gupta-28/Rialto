@@ -37,7 +37,7 @@ export default function Loan() {
   }, []);
 
   const s = STEPS[i]!;
-  const tone = s.tone === "settled" ? "var(--settled)" : s.tone === "pending" ? "var(--pending)" : "var(--ink)";
+  const tone = s.tone ? "var(--ink)" : "var(--ink-2)";
 
   const post = (x: number, label: string) => (
     <g>

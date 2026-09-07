@@ -62,23 +62,25 @@ export default function StateMachine() {
     return (lit[step] ?? []).includes(what);
   };
 
-  const node = (id: string, x: number, y: number, label: string, sub: string, tone: string) => {
+  const node = (id: string, x: number, y: number, label: string, sub: string, kind?: "end" | "cut") => {
     const active = on(id);
-    const colour = !active ? "var(--ink-2)" : tone;
+    const filled = kind === "end" && active;
     return (
-      <g style={{ transition: "opacity .35s ease" }} opacity={active || step < 0 ? 1 : 0.62}>
+      <g style={{ transition: "opacity .35s ease" }} opacity={active || step < 0 ? 1 : 0.55}>
         <rect
           x={x - 74} y={y - 27} width={148} height={54} rx={3}
-          fill={active ? "rgba(20,19,15,.04)" : "none"}
-          stroke={colour} strokeWidth={active ? 1.5 : 1}
-          style={{ transition: "stroke .35s ease" }}
+          fill={filled ? "var(--ink)" : active ? "var(--wash-2)" : "none"}
+          stroke="var(--ink)" strokeWidth={active ? 1.5 : 1}
+          strokeDasharray={kind === "cut" ? "5 4" : undefined}
+          style={{ transition: "fill .35s ease, stroke-width .35s ease" }}
         />
         <text x={x} y={y - 3} textAnchor="middle" fontFamily="var(--mono)" fontSize="13"
-              letterSpacing="1.4" fill={colour} style={{ transition: "fill .35s ease" }}>
+              letterSpacing="1.4" fill={filled ? "var(--paper)" : "var(--ink)"}
+              style={{ transition: "fill .35s ease" }}>
           {label}
         </text>
         <text x={x} y={y + 15} textAnchor="middle" fontFamily="var(--mono)" fontSize="9.5"
-              letterSpacing=".8" fill="var(--muted)">
+              letterSpacing=".8" fill={filled ? "rgba(244,242,237,.7)" : "var(--muted)"}>
           {sub}
         </text>
       </g>
@@ -115,10 +117,10 @@ export default function StateMachine() {
       {edge("repay", "M 446 136 C 502 136, 516 82, 566 82", "repay · before the date", 508, 62)}
       {edge("claim", "M 446 164 C 502 164, 516 218, 566 218", "claim · after it", 508, 250)}
 
-      {node("open", 116, 150, "OPEN", "collateral escrowed", "var(--ink)")}
-      {node("funded", 372, 150, "FUNDED", "cash lender → borrower", "var(--ink)")}
-      {node("repaid", 648, 84, "REPAID", "collateral home", "var(--settled)")}
-      {node("defaulted", 648, 216, "DEFAULTED", "collateral to lender", "var(--pending)")}
+      {node("open", 116, 150, "OPEN", "collateral escrowed")}
+      {node("funded", 372, 150, "FUNDED", "cash lender → borrower")}
+      {node("repaid", 648, 84, "REPAID", "collateral home", "end")}
+      {node("defaulted", 648, 216, "DEFAULTED", "collateral to lender", "cut")}
     </svg>
   );
 }
