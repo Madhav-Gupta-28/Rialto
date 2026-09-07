@@ -7,8 +7,8 @@ import { hederaTestnet } from "@/lib/chain";
 import { short } from "@/lib/format";
 
 const links = [
-  { href: "/", label: "Market" },
   { href: "/how", label: "How it works" },
+  { href: "/market", label: "Market" },
   { href: "/borrow", label: "Borrow" },
   { href: "/mandate", label: "Underwrite" },
 ];
@@ -29,7 +29,7 @@ export default function Nav() {
   return (
     <header className="top">
       <div className="wrap row">
-        <Link href="/" className="mark">
+        <Link href="/" className="mark" style={{ justifySelf: "start" }}>
           Rialto<span>.</span>
         </Link>
         <nav className="links">
@@ -39,7 +39,7 @@ export default function Nav() {
             </Link>
           ))}
         </nav>
-        <div className="spacer" />
+        <div style={{ justifySelf: "end" }}>
         {wrongChain ? (
           <button className="btn small" onClick={() => switchChain({ chainId: hederaTestnet.id })}>
             Switch to Hedera testnet
@@ -57,6 +57,7 @@ export default function Nav() {
             {connectors.length === 0 ? "No wallet found" : isPending ? "Connecting…" : "Connect wallet"}
           </button>
         )}
+        </div>
       </div>
     </header>
   );

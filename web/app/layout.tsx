@@ -26,8 +26,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main>{children}</main>
           <footer className="foot">
             <div className="wrap">
-              Hedera testnet. The instrument is a demonstration bond issued through Asset Tokenization
-              Studio; it represents no real company and is not an offer of securities.
+              <div className="row">
+                <span className="mark">Rialto.</span>
+                <nav>
+                  <a href="/">Market</a>
+                  <a href="/how">How it works</a>
+                  <a href="/borrow">Borrow</a>
+                  <a href="/mandate">Underwrite</a>
+                  <a href="https://github.com/Madhav-Gupta-28/Rialto" target="_blank" rel="noreferrer">
+                    GitHub
+                  </a>
+                  <a
+                    href="https://hashscan.io/testnet/contract/0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Contract
+                  </a>
+                </nav>
+              </div>
+              <div className="fine">
+                <span>Built on Hedera · testnet</span>
+                <span>v1</span>
+              </div>
             </div>
           </footer>
         </Providers>

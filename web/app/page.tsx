@@ -1,335 +1,181 @@
 "use client";
 
 import Link from "next/link";
-import { useReadContract } from "wagmi";
-import { marketAbi } from "@/lib/abi";
-import { MARKET, BOND, hashscan } from "@/lib/chain";
-import RequestRow from "@/components/RequestRow";
 import Rise from "@/components/figures/Rise";
-import PriceGap from "@/components/figures/PriceGap";
-import StateMachine from "@/components/figures/StateMachine";
-import Ordering from "@/components/figures/Ordering";
-import Reasoning from "@/components/figures/Reasoning";
-import CouponFall from "@/components/figures/CouponFall";
-import Exchange from "@/components/figures/Exchange";
-import Counter from "@/components/figures/Counter";
+import Loan from "@/components/figures/Loan";
+import Blind from "@/components/figures/Blind";
 import Sequence from "@/components/figures/Sequence";
 
-export default function Market() {
-  const { data: count, isLoading } = useReadContract({
-    address: MARKET,
-    abi: marketAbi,
-    functionName: "requests",
-  });
-
-  const n = Number(count ?? 0n);
-  const ids = Array.from({ length: n }, (_, i) => BigInt(n - 1 - i)); // newest first
-
+/**
+ * The homepage says one thing: you can borrow against a bond nobody will price,
+ * and here is proof it works. Everything mechanical lives on /how, and the
+ * loan table lives on /market — this page is the argument, not the instrument.
+ */
+export default function Home() {
   return (
     <>
-      {/* ── 01 · the thesis ───────────────────────────────────────── */}
-      <section className="band void" style={{ paddingTop: 128 }}>
+      {/* the offer */}
+      <section className="band void" style={{ paddingTop: 132, paddingBottom: 96 }}>
         <div className="wrap">
-          <p className="eyebrow">Hedera · Asset Tokenization Studio</p>
-          <h1 className="claim">
-            An illiquid bond has no price.
+          <h1 className="claim" style={{ maxWidth: "13ch" }}>
+            Cash today.
             <br />
-            <span className="dim">Rialto lends against it anyway.</span>
+            <span className="dim">The bond stays yours.</span>
           </h1>
-          <p className="lede" style={{ maxWidth: "58ch" }}>
-            Every lending market needs a price to run liquidations. A corporate bond trades by appointment,
-            so it has none — which is why the largest asset class on earth cannot be collateral. Rialto uses
-            the structure bond desks already use.
+          <p className="lede" style={{ maxWidth: "46ch", marginTop: 26, fontSize: 19 }}>
+            Borrow against a bond that nobody will price. Lenders bid to fund you, you get the bond back
+            when you repay, and you keep every coupon it pays in between.
           </p>
 
-          <div className="stat-strip">
-            <div className="stat">
-              <b>{isLoading ? "—" : <Counter to={n} hold={200} />}</b>
-              <span>loans on chain</span>
-            </div>
-            <div className="stat">
-              <b>0</b>
-              <span>oracles read</span>
-            </div>
-            <div className="stat">
-              <b><Counter to={2} hold={500} /></b>
-              <span>endings</span>
-            </div>
+          <div style={{ marginTop: 38, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <Link className="btn" href="/borrow">Borrow</Link>
+            <Link className="btn ghost" href="/mandate">Lend</Link>
           </div>
 
-          <div style={{ marginTop: 36, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link className="btn" href="/borrow">Raise cash against a security</Link>
-            <Link className="btn ghost" href="/mandate">Underwrite</Link>
-          </div>
-
-          <div className="hero-figure">
-            <Exchange />
+          <div className="hero-figure" style={{ marginTop: 64 }}>
+            <Loan />
           </div>
         </div>
       </section>
 
-      {/* ── 02 · the problem ──────────────────────────────────────── */}
+      {/* the problem */}
       <section className="band paper">
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">The problem</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              You cannot oracle a thing that does not trade.
+            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)", maxWidth: "16ch" }}>
+              Nobody lends against what they cannot price.
             </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              A margin call on a liquid asset is a measurement. On a bond that printed three times this
-              month it is a guess — and the gap between the last print and now is the whole risk.
+            <p className="lede" style={{ maxWidth: "48ch" }}>
+              So the owner of a perfectly good bond sells it instead — at whatever a buyer offers, on the
+              day they happen to need the money.
             </p>
-            <figure className="figure">
-              <PriceGap />
-              <figcaption>
-                Same threshold. One of these can be liquidated safely. The other cannot be priced at all.
-              </figcaption>
-            </figure>
-          </Rise>
-        </div>
-      </section>
-
-      {/* ── 03 · the mechanism ────────────────────────────────────── */}
-      <section className="band void">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">The mechanism</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              Two endings. Nothing in between.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              A borrower pledges the security and asks for cash for a fixed term. Underwriters bid the
-              repayment; lowest wins. After that, every branch depends on two things only — whether time
-              passed, and whether the money arrived.
-            </p>
-            <figure className="figure">
-              <StateMachine />
-              <figcaption>
-                No margin call, no partial liquidation, no auction. There is nothing to price, so there is
-                nothing to unwind.
-              </figcaption>
-            </figure>
-          </Rise>
-        </div>
-      </section>
-
-      {/* ── 04 · the agent ────────────────────────────────────────── */}
-      <section className="band paper">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">The underwriter</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              It publishes the reasoning before it knows the outcome.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              The agent reads the offering document off the security, checks the bytes against the hash the
-              issuer committed to, and writes its opinion to a consensus topic. Only then does it bid.
-            </p>
-            <figure className="figure">
-              <Ordering />
-              <figcaption>
-                Consensus timestamped the explanation. It cannot have been written to fit what happened next.
-              </figcaption>
-            </figure>
-
-            <div className="figure">
-              <Reasoning />
+            <div style={{ marginTop: 40 }}>
+              <Blind />
             </div>
           </Rise>
         </div>
       </section>
 
-      {/* ── 05 · settlement ───────────────────────────────────────── */}
+      {/* the answer */}
       <section className="band void">
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">Settlement</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              The loan matured while nobody was watching.
+            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)", maxWidth: "17ch" }}>
+              So Rialto never asks what it is worth.
             </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              At award the market asks Hedera to call <code>claim</code> on itself at maturity. No keeper,
-              no bot, no cron job on somebody&rsquo;s laptop.
+            <p className="lede" style={{ maxWidth: "50ch" }}>
+              Lenders read the bond&rsquo;s own offering document and bid a number they are willing to be
+              held to. That number is fixed the moment the loan is made and never moves again — so there is
+              nothing to check, nothing to recalculate, and nothing that can be liquidated out from under
+              you.
             </p>
+            <p className="lede" style={{ maxWidth: "50ch", marginTop: 22 }}>
+              A bond desk has settled loans this way for a century. Rialto is that, with the reading done by
+              software and the settlement done by Hedera.
+            </p>
+            <div style={{ marginTop: 32 }}>
+              <Link className="btn ghost" href="/how">See how it works</Link>
+            </div>
+          </Rise>
+        </div>
+      </section>
+
+      {/* the proof */}
+      <section className="band paper">
+        <div className="wrap">
+          <Rise>
+            <p className="eyebrow">Proof</p>
+            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)", maxWidth: "18ch" }}>
+              Three things that already happened, on Hedera.
+            </h2>
+
+            <div className="figure" style={{ marginTop: 34 }}>
+              <p style={{ fontSize: 17, color: "var(--ink)", margin: "0 0 6px" }}>
+                The lender explained itself before it knew if it had won.
+              </p>
+              <p className="sub" style={{ margin: "0 0 18px", maxWidth: "52ch" }}>
+                Its reasoning was written to a public ledger 61 seconds before the loan was awarded, and the
+                bid carries that message&rsquo;s hash. It cannot have been written afterwards to fit.
+              </p>
+              <p className="readout" style={{ margin: 0 }}>
+                <span className="k">reasoning</span> <span className="v">20:36:21</span>{" "}
+                <span className="k">·</span> <span className="k">awarded</span>{" "}
+                <span className="v">20:37:22</span>
+              </p>
+            </div>
+
             <div className="figure">
+              <p style={{ fontSize: 17, color: "var(--ink)", margin: "0 0 6px" }}>
+                A loan settled itself with nobody watching.
+              </p>
+              <p className="sub" style={{ margin: "0 0 18px", maxWidth: "52ch" }}>
+                No keeper, no bot, no cron job. The market asked Hedera to close the loan at maturity, and
+                Hedera did — paying its own fee to do it.
+              </p>
               <Sequence
-                gap={520}
+                gap={480}
                 rows={[
                   <p className="readout" style={{ margin: 0 }} key="a">
-                    <span className="k">consensus</span> <span className="v">15:03:25 UTC</span>
-                    {"  "}<span className="k">— dueAt + 60, exactly</span>
+                    <span className="k">scheduled</span> <span className="v">true</span>{" "}
+                    <span className="k">— the network ran it, not a caller</span>
                   </p>,
                   <p className="readout" style={{ margin: 0 }} key="b">
-                    <span className="k">scheduled</span> <span className="v">True</span>
-                    {"  "}<span className="k">— the network ran it, not a caller</span>
+                    <span className="k">payer</span> <span className="v">0.0.10382007</span>{" "}
+                    <span className="k">— the contract itself</span>
                   </p>,
-                  <p className="readout" style={{ margin: 0 }} key="c">
-                    <span className="k">payer</span> <span className="v">0.0.10382007</span>
-                    {"  "}<span className="k">— the contract paid for its own settlement</span>
-                  </p>,
-                  <p className="readout" style={{ margin: "10px 0 0" }} key="d">
+                  <p className="readout" style={{ margin: "8px 0 0" }} key="c">
                     <span className="k">result</span> <span className="state settled">success</span>
                   </p>,
                 ]}
               />
             </div>
-          </Rise>
-        </div>
-      </section>
 
-      {/* ── 06 · the coupon ───────────────────────────────────────── */}
-      <section className="band paper">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">Income while pledged</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              The bond kept paying. The borrower still got it.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              While the security is pledged the escrow is the holder of record, so the coupon is paid to the
-              market rather than to the borrower who still owns the bond. Repo settles that with a
-              manufactured payment, netted against the repayment. So does this.
-            </p>
-            <figure className="figure" style={{ padding: "48px 30px" }}>
-              <CouponFall />
-            </figure>
-          </Rise>
-        </div>
-      </section>
-
-      {/* ── 07 · compliance ───────────────────────────────────────── */}
-      <section className="band void">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">Compliance</p>
-            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)" }}>
-              The issuer froze the lender.
-              <br />
-              <span className="dim">The network tried to settle. It failed.</span>
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              These are permissioned securities. An issuer can pause, freeze or delist at any moment — and
-              when they do, the position holds. It does not unwind, and nothing is lost.
-            </p>
             <div className="figure">
-              <p className="eyebrow" style={{ marginBottom: 14 }}>
-                Every scheduled call the market has ever made
+              <p style={{ fontSize: 17, color: "var(--ink)", margin: "0 0 6px" }}>
+                The issuer froze the lender, and the network could not settle.
+              </p>
+              <p className="sub" style={{ margin: "0 0 18px", maxWidth: "52ch" }}>
+                These are regulated securities and an issuer can stop a transfer at any time. When they did,
+                the loan simply held — the collateral stayed put and completed once the block was lifted.
               </p>
               <Sequence
                 rows={[
                   <p className="readout" style={{ margin: 0 }} key="a">
-                    <span className="k">20:16:49</span> <span className="v">recordCoupon</span>{" "}
+                    <span className="k">20:33:25</span> <span className="v">settle</span>{" "}
                     <span className="state settled">success</span>
                   </p>,
                   <p className="readout" style={{ margin: 0 }} key="b">
-                    <span className="k">20:33:25</span> <span className="v">claim</span>{" "}
+                    <span className="k">20:54:13</span> <span className="v">settle</span>{" "}
                     <span className="state settled">success</span>
                   </p>,
                   <p className="readout" style={{ margin: 0 }} key="c">
-                    <span className="k">20:54:13</span> <span className="v">claim</span>{" "}
+                    <span className="k">20:54:22</span> <span className="v">settle</span>{" "}
                     <span className="state settled">success</span>
                   </p>,
-                  <p className="readout" style={{ margin: 0 }} key="d">
-                    <span className="k">20:54:22</span> <span className="v">claim</span>{" "}
-                    <span className="state settled">success</span>
-                  </p>,
-                  <p className="readout" style={{ margin: "10px 0 0" }} key="e">
-                    <span className="k">21:11:12</span> <span className="v">claim</span>{" "}
-                    <span className="state blocked">reverted</span>{" "}
-                    <span className="k">— lender not on the control list</span>
+                  <p className="readout" style={{ margin: "8px 0 0" }} key="d">
+                    <span className="k">21:11:12</span> <span className="v">settle</span>{" "}
+                    <span className="state blocked">blocked</span>{" "}
+                    <span className="k">— the lender was frozen</span>
                   </p>,
                 ]}
               />
-              <figcaption style={{ textAlign: "left", marginTop: 22 }}>
-                One line differs, and it is the one that matters. A control delays a settlement.
-                It never destroys one.
-              </figcaption>
             </div>
           </Rise>
         </div>
       </section>
 
-      {/* ── 08 · verify ───────────────────────────────────────────── */}
-      <section className="band paper tight">
+      {/* the close */}
+      <section className="band void" style={{ borderBottom: "none", paddingBottom: 120 }}>
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">Verify</p>
-            <h2 className="claim" style={{ fontSize: "clamp(26px,3.4vw,38px)" }}>
-              Do not take any of this on trust.
+            <h2 className="claim" style={{ fontSize: "clamp(28px,4vw,46px)", maxWidth: "15ch" }}>
+              Keep the bond. Take the cash.
             </h2>
-            <div className="grid two" style={{ marginTop: 26 }}>
-              <div>
-                <p style={{ fontSize: 14, marginBottom: 6, color: "var(--paper-ink)" }}>
-                  <strong>The reasoning predates the bid</strong>
-                </p>
-                <p className="readout" style={{ fontSize: 12 }}>script/verify-reasoning.sh 6</p>
-                <p style={{ fontSize: 14, margin: "22px 0 6px", color: "var(--paper-ink)" }}>
-                  <strong>The document is the one committed to</strong>
-                </p>
-                <p className="readout" style={{ fontSize: 12 }}>
-                  cast call {BOND.slice(0, 10)}… &apos;getDocument(bytes32)&apos;
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: 14, marginBottom: 6, color: "var(--paper-ink)" }}>
-                  <strong>The network settled it, not a person</strong>
-                </p>
-                <p className="readout" style={{ fontSize: 12 }}>
-                  GET /api/v1/schedules/&#123;id&#125; → executed_timestamp
-                </p>
-                <p style={{ fontSize: 14, margin: "22px 0 6px", color: "var(--paper-ink)" }}>
-                  <strong>Everything else</strong>
-                </p>
-                <p className="readout" style={{ fontSize: 12 }}>forge test · 243 passing</p>
-              </div>
+            <div style={{ marginTop: 32, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Link className="btn" href="/borrow">Borrow</Link>
+              <Link className="btn ghost" href="/market">See the market</Link>
             </div>
           </Rise>
-        </div>
-      </section>
-
-      {/* ── 09 · the market ───────────────────────────────────────── */}
-      <section className="band void" style={{ borderBottom: "none" }}>
-        <div className="wrap">
-          <p className="eyebrow">The market</p>
-          <h2 className="claim" style={{ fontSize: "clamp(26px,3.4vw,38px)" }}>
-            {isLoading ? "Reading the chain…" : `${n} loans, live from the contract.`}
-          </h2>
-          <p className="sub" style={{ maxWidth: "56ch" }}>
-            No backend and no indexer — every figure below is a contract call made by your browser.
-            Collateral is{" "}
-            <a href={hashscan(BOND)} target="_blank" rel="noreferrer">RDN27</a>, a bond issued through the
-            live ATS factory.
-          </p>
-
-          {isLoading ? (
-            <p className="empty">Reading the chain…</p>
-          ) : n === 0 ? (
-            <p className="empty">No requests yet. Open the first one.</p>
-          ) : (
-            <div style={{ overflowX: "auto", marginTop: 26 }}>
-              <table className="rows">
-                <thead>
-                  <tr>
-                    <th>Request</th>
-                    <th>Status</th>
-                    <th>Principal</th>
-                    <th>Collateral</th>
-                    <th>Term</th>
-                    <th>Best bid</th>
-                    <th>Rate</th>
-                    <th>Bids</th>
-                    <th className="wide">Borrower</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ids.map((id) => (
-                    <RequestRow key={id.toString()} id={id} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </section>
     </>
