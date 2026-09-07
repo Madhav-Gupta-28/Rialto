@@ -27,9 +27,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <footer className="foot">
             <div className="wrap">
               <div className="row">
-                <span className="mark">Rialto.</span>
+                <div>
+                  <span className="mark">Rialto.</span>
+                  <span className="built">Built on Hedera</span>
+                </div>
                 <nav>
-                  <a href="/">Market</a>
+                  <a href="/market">Market</a>
                   <a href="/how">How it works</a>
                   <a href="/borrow">Borrow</a>
                   <a href="/mandate">Underwrite</a>
@@ -43,11 +46,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   >
                     Contract
                   </a>
+                  <span className="ver">v1</span>
                 </nav>
-              </div>
-              <div className="fine">
-                <span>Built on Hedera · testnet</span>
-                <span>v1</span>
               </div>
             </div>
           </footer>

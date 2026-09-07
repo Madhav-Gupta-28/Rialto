@@ -165,15 +165,14 @@ table.rows td { padding: 13px 12px 13px 0; border-bottom: 1px solid var(--line);
 table.rows tr:hover td { background: var(--surface); }
 table.rows td.wide { font-family: var(--sans); }
 
-footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: var(--muted); font-size: 13px; }
-.foot .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; flex-wrap: wrap; }
+footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: var(--muted); font-size: 13px; }
+.foot .row { display: flex; justify-content: space-between; align-items: baseline; gap: 32px; flex-wrap: wrap; }
 .foot .mark { font-family: var(--serif); font-size: 21px; color: var(--ink-2); }
-.foot nav { display: flex; gap: 24px; flex-wrap: wrap; }
+.foot .built { margin-left: 14px; font-size: 13px; color: var(--muted); }
+.foot nav { display: flex; gap: 26px; flex-wrap: wrap; align-items: baseline; }
 .foot a { color: var(--ink-2); text-decoration: none; }
 .foot a:hover { color: var(--ink); }
-.foot .fine { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
-              display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-              font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+.foot .ver { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
 .empty { color: var(--muted); padding: 34px 0; text-align: center; font-size: 14px; }
 
@@ -405,3 +404,13 @@ footer.foot { border-top: 1px solid var(--line); padding: 42px 0 48px; color: va
   .nots > div { grid-template-columns: 1fr; gap: 6px }
   .step { grid-template-columns: 32px 1fr; gap: 14px }
 }
+
+/* Text and its figure, side by side, so neither has to be read alone. */
+.beside { display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center; }
+@media (max-width: 860px) { .beside { grid-template-columns: 1fr; gap: 34px } }
+
+.proofs { display: grid; gap: 2px; margin-top: 36px; }
+.proof { border: 1px solid var(--line); padding: 26px 28px 24px; }
+.proof h3 { font-family: var(--sans); font-size: 17px; font-weight: 600; color: var(--ink);
+            margin: 0 0 18px; letter-spacing: -0.005em; }
+.proof-note { font-size: 14px; color: var(--muted); margin: 12px 0 0; max-width: 54ch; }
