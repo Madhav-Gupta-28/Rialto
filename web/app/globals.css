@@ -332,3 +332,10 @@ footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: va
 .waiting i:nth-child(3) { animation-delay: .32s }
 @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .waiting i { animation: none; opacity: .7 } }
+
+@keyframes phase-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { @keyframes phase-in { from { opacity: 1 } to { opacity: 1 } } }
+
+/* Figures that sit inside a dark band need their own ground, not the band's. */
+.hero-figure { border: 1px solid var(--line); border-radius: 3px; background: #0d0d10;
+               padding: 24px 22px 16px; margin-top: 46px; }

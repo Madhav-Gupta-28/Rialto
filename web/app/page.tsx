@@ -10,6 +10,9 @@ import PriceGap from "@/components/figures/PriceGap";
 import StateMachine from "@/components/figures/StateMachine";
 import Ordering from "@/components/figures/Ordering";
 import CouponFall from "@/components/figures/CouponFall";
+import Exchange from "@/components/figures/Exchange";
+import Counter from "@/components/figures/Counter";
+import Sequence from "@/components/figures/Sequence";
 
 export default function Market() {
   const { data: count, isLoading } = useReadContract({
@@ -40,7 +43,7 @@ export default function Market() {
 
           <div className="stat-strip">
             <div className="stat">
-              <b>{isLoading ? "—" : n}</b>
+              <b>{isLoading ? "—" : <Counter to={n} hold={200} />}</b>
               <span>loans on chain</span>
             </div>
             <div className="stat">
@@ -48,14 +51,18 @@ export default function Market() {
               <span>oracles read</span>
             </div>
             <div className="stat">
-              <b>2</b>
+              <b><Counter to={2} hold={500} /></b>
               <span>endings</span>
             </div>
           </div>
 
-          <div style={{ marginTop: 40, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 36, display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Link className="btn" href="/borrow">Raise cash against a security</Link>
             <Link className="btn ghost" href="/mandate">Underwrite</Link>
+          </div>
+
+          <div className="hero-figure">
+            <Exchange />
           </div>
         </div>
       </section>
@@ -141,18 +148,26 @@ export default function Market() {
               no bot, no cron job on somebody&rsquo;s laptop.
             </p>
             <div className="figure">
-              <p className="readout" style={{ margin: 0 }}>
-                <span className="k">consensus</span> <span className="v">15:03:25 UTC</span>
-                {"  "}<span className="k">— dueAt + 60, exactly</span>
-                <br />
-                <span className="k">scheduled</span> <span className="v">True</span>
-                {"  "}<span className="k">— the network ran it, not a caller</span>
-                <br />
-                <span className="k">payer</span> <span className="v">0.0.10382007</span>
-                {"  "}<span className="k">— the contract paid for its own settlement</span>
-                <br />
-                <span className="k">result</span> <span className="state settled">success</span>
-              </p>
+              <Sequence
+                gap={520}
+                rows={[
+                  <p className="readout" style={{ margin: 0 }} key="a">
+                    <span className="k">consensus</span> <span className="v">15:03:25 UTC</span>
+                    {"  "}<span className="k">— dueAt + 60, exactly</span>
+                  </p>,
+                  <p className="readout" style={{ margin: 0 }} key="b">
+                    <span className="k">scheduled</span> <span className="v">True</span>
+                    {"  "}<span className="k">— the network ran it, not a caller</span>
+                  </p>,
+                  <p className="readout" style={{ margin: 0 }} key="c">
+                    <span className="k">payer</span> <span className="v">0.0.10382007</span>
+                    {"  "}<span className="k">— the contract paid for its own settlement</span>
+                  </p>,
+                  <p className="readout" style={{ margin: "10px 0 0" }} key="d">
+                    <span className="k">result</span> <span className="state settled">success</span>
+                  </p>,
+                ]}
+              />
             </div>
           </Rise>
         </div>
@@ -196,23 +211,31 @@ export default function Market() {
               <p className="eyebrow" style={{ marginBottom: 14 }}>
                 Every scheduled call the market has ever made
               </p>
-              <p className="readout" style={{ margin: 0 }}>
-                <span className="k">20:16:49</span> <span className="v">recordCoupon</span>{" "}
-                <span className="state settled">success</span>
-                <br />
-                <span className="k">20:33:25</span> <span className="v">claim</span>{" "}
-                <span className="state settled">success</span>
-                <br />
-                <span className="k">20:54:13</span> <span className="v">claim</span>{" "}
-                <span className="state settled">success</span>
-                <br />
-                <span className="k">20:54:22</span> <span className="v">claim</span>{" "}
-                <span className="state settled">success</span>
-                <br />
-                <span className="k">21:11:12</span> <span className="v">claim</span>{" "}
-                <span className="state blocked">reverted</span>{" "}
-                <span className="k">— lender not on the control list</span>
-              </p>
+              <Sequence
+                rows={[
+                  <p className="readout" style={{ margin: 0 }} key="a">
+                    <span className="k">20:16:49</span> <span className="v">recordCoupon</span>{" "}
+                    <span className="state settled">success</span>
+                  </p>,
+                  <p className="readout" style={{ margin: 0 }} key="b">
+                    <span className="k">20:33:25</span> <span className="v">claim</span>{" "}
+                    <span className="state settled">success</span>
+                  </p>,
+                  <p className="readout" style={{ margin: 0 }} key="c">
+                    <span className="k">20:54:13</span> <span className="v">claim</span>{" "}
+                    <span className="state settled">success</span>
+                  </p>,
+                  <p className="readout" style={{ margin: 0 }} key="d">
+                    <span className="k">20:54:22</span> <span className="v">claim</span>{" "}
+                    <span className="state settled">success</span>
+                  </p>,
+                  <p className="readout" style={{ margin: "10px 0 0" }} key="e">
+                    <span className="k">21:11:12</span> <span className="v">claim</span>{" "}
+                    <span className="state blocked">reverted</span>{" "}
+                    <span className="k">— lender not on the control list</span>
+                  </p>,
+                ]}
+              />
               <figcaption style={{ textAlign: "left", marginTop: 22 }}>
                 One line differs, and it is the one that matters. A control delays a settlement.
                 It never destroys one.
