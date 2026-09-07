@@ -40,3 +40,31 @@ describe("units", () => {
     expect(units(2100n * 10n ** 18n, 18, 0)).toBe("2,100");
   });
 });
+
+import { rateLabel, RATE_CEILING_BPS } from "../lib/format";
+
+describe("rateLabel", () => {
+  it("prints an ordinary rate exactly", () => {
+    expect(rateLabel(600)).toBe("6.00%");
+    expect(rateLabel(547)).toBe("5.47%");
+    expect(rateLabel(0)).toBe("0.00%");
+  });
+
+  /**
+   * `RialtoMarket.rateBps` returns a uint16 and caps rather than panics, so a
+   * short loan carrying a coupon saturates it. Request #12 paid 57.54 on 2,000
+   * over thirty minutes — about 50,400% annualised — and was stored as 65,535.
+   * Printing "655.35%" states a measurement the contract never made, and reads
+   * as either a broken figure or a usurious one.
+   */
+  it("says the ceiling is a ceiling", () => {
+    expect(rateLabel(RATE_CEILING_BPS)).toBe("over 655%");
+    expect(rateLabel(RATE_CEILING_BPS)).not.toContain("655.35%");
+  });
+
+  it("treats anything at or past the ceiling the same way", () => {
+    expect(rateLabel(65534)).toBe("655.34%");
+    expect(rateLabel(65535)).toBe("over 655%");
+    expect(rateLabel(999999)).toBe("over 655%");
+  });
+});

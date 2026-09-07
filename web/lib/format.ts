@@ -46,3 +46,18 @@ export function duration(seconds: number | bigint): string {
 }
 
 export const bps = (n: number) => `${(n / 100).toFixed(2)}%`;
+
+/**
+ * The rate on a loan, which is not always a number the contract can hold.
+ *
+ * `rateBps` returns a uint16 and deliberately caps rather than panics, so a
+ * short loan carrying a coupon comes back saturated: request #12 paid 57.54 on
+ * 2,000 over thirty minutes, which annualises to about 50,400% and is stored as
+ * 65,535. Printing that as "655.35%" states a measurement the contract never
+ * made, and reads as either a broken figure or a usurious one.
+ *
+ * At the ceiling this says so instead. Everything below it is exact.
+ */
+export const RATE_CEILING_BPS = 65535;
+
+export const rateLabel = (n: number) => (n >= RATE_CEILING_BPS ? "over 655%" : bps(n));

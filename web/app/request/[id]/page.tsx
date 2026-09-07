@@ -9,7 +9,7 @@ import { maxUint256, type Hex } from "viem";
 import { marketAbi, securityAbi, couponMarketAbi, mandatesAbi } from "@/lib/abi";
 import { lensAbi, explain, type Obstacle } from "@/lib/lens";
 import { MARKET, MANDATES, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
-import { units, duration, bps, short } from "@/lib/format";
+import { units, duration, bps, rateLabel, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
 import ManufacturedPayment from "@/components/ManufacturedPayment";
@@ -135,7 +135,7 @@ export default function RequestPage() {
                       }
                     />
                     <Row k="Repayment" v={`${units(best![2], CASH_DECIMALS)} dUSD`} />
-                    <Row k="Rate" v={bps(rateOf(r.principal, best![2], r.term))} />
+                    <Row k="Rate" v={rateLabel(rateOf(r.principal, best![2], r.term))} />
                     {reasoningRef && reasoningRef !== `0x${"00".repeat(32)}` && (
                       <>
                         <Row k="Reasoning" v={`${reasoningRef.slice(0, 18)}…`} />
@@ -371,7 +371,7 @@ function Actions(props: {
             />
             <span className="hint">
               {parsed.ok
-                ? `${bps(rateOf(props.principal, parsed.value, props.term))} annualised`
+                ? `${rateLabel(rateOf(props.principal, parsed.value, props.term))} annualised`
                 : repay.trim() === ""
                   ? `at least the principal, ${units(props.principal, CASH_DECIMALS)}`
                   : parsed.why === "too small"

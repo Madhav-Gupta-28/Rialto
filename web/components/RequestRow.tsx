@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useReadContract } from "wagmi";
 import { marketAbi } from "@/lib/abi";
 import { MARKET, CASH_DECIMALS, BOND_DECIMALS } from "@/lib/chain";
-import { units, duration, bps, short } from "@/lib/format";
+import { units, duration, rateLabel, short } from "@/lib/format";
 import StatusPill from "./Status";
 
 export default function RequestRow({ id }: { id: bigint }) {
@@ -29,7 +29,7 @@ export default function RequestRow({ id }: { id: bigint }) {
       <td>{units(r.collateralAmount, BOND_DECIMALS, 0)}</td>
       <td>{duration(r.term)}</td>
       <td>{hasBid ? units(bid, CASH_DECIMALS) : <span className="sub">—</span>}</td>
-      <td>{rate !== null ? bps(rate) : <span className="sub">—</span>}</td>
+      <td>{rate !== null ? rateLabel(rate) : <span className="sub">—</span>}</td>
       <td>{(count ?? 0n).toString()}</td>
       <td className="wide sub">{short(r.borrower)}</td>
     </tr>
