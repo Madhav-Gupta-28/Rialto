@@ -2,322 +2,171 @@
 
 import Link from "next/link";
 import Rise from "@/components/figures/Rise";
-import StateMachine from "@/components/figures/StateMachine";
+import Lifecycle from "@/components/how/Lifecycle";
+import Underwriting from "@/components/how/Underwriting";
+import Controls from "@/components/how/Controls";
+import { link } from "@/lib/links";
 
 /**
- * The mechanics, for a reader who has already been convinced and now wants to
- * know how it is actually built. The landing page makes the argument; this page
- * answers the questions that argument raises.
+ * Three diagrams, and everything else is a caption.
+ *
+ * A reader who looks at nothing but the pictures should leave knowing what the
+ * loan is, who decides, and what an issuer can do to it. Every label is a link
+ * to the function that does the thing, so a sceptic can go from a claim to the
+ * line of code in one click.
  */
 export default function How() {
   return (
     <>
-      <section className="band void" style={{ paddingTop: 112, paddingBottom: 64 }}>
+      <section className="band" style={{ paddingTop: 120, paddingBottom: 76, borderBottom: "none" }}>
         <div className="wrap">
-          <p className="eyebrow">How it works</p>
-          <h1 className="claim" style={{ fontSize: "clamp(32px,4.8vw,56px)" }}>
-            A repo, rebuilt so a
-            <br />
-            <span className="dim">machine can underwrite it.</span>
+          <h1 className="claim" style={{ textAlign: "center", maxWidth: "20ch", margin: "0 auto" }}>
+            A loan against a bond, in three pictures.
           </h1>
-          <p className="lede" style={{ maxWidth: "56ch" }}>
-            Nothing here is novel finance. Repurchase agreements have settled bond markets for a century.
-            What is new is that every part of one now happens on a public ledger — including the judgement.
+          <p className="lede" style={{ textAlign: "center", maxWidth: "50ch", margin: "24px auto 0" }}>
+            Nothing here is new finance. What is new is that every part of it — including the judgement —
+            happens where anyone can check it.
           </p>
         </div>
       </section>
 
-      {/* who is in the room */}
-      <section className="band paper tight">
+      {/* ── one ── */}
+      <section className="chapter">
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">The parties</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>Four, and one of them is the network.</h2>
-            <div className="pair">
-              <div>
-                <h4>The issuer</h4>
-                <p>
-                  Creates the security through Asset Tokenization Studio and publishes its offering document
-                  under a role-gated write. Keeps the power to pause, freeze and delist — and uses it.
-                </p>
-              </div>
-              <div>
-                <h4>The borrower</h4>
-                <p>
-                  Owns the bond and wants cash without selling it. Fixes the principal, the term and the
-                  collateral. Never names a price.
-                </p>
-              </div>
-              <div>
-                <h4>The underwriter</h4>
-                <p>
-                  Has the cash. Publishes limits on chain, then either bids by hand or binds an agent key to
-                  bid inside them. The contract cannot tell the two apart.
-                </p>
-              </div>
-              <div>
-                <h4>Hedera</h4>
-                <p>
-                  Not a venue — a participant. The market asks it at award to settle the loan at maturity,
-                  and it does, paying its own fee, whether or not anyone is watching.
-                </p>
-              </div>
-            </div>
-          </Rise>
-        </div>
-      </section>
-
-      {/* the lifecycle, with the calls */}
-      <section className="band void">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">One loan, end to end</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>Six calls, and two of them are not yours.</h2>
-
-            <div className="steps">
-              <div className="step">
-                <div>
-                  <span className="who">Borrower</span>
-                  <h4>Open the request</h4>
-                  <p>
-                    The collateral moves into escrow immediately, and the document hash is read off the
-                    security rather than taken on the borrower&rsquo;s word — which is what binds every later
-                    bid to the bytes the issuer published.
-                  </p>
-                  <span className="call">open(collateral, amount, cash, principal, term, window, docName)</span>
-                </div>
-              </div>
-
-              <div className="step">
-                <div>
-                  <span className="who">Underwriter, or its agent</span>
-                  <h4>Bid the repayment</h4>
-                  <p>
-                    Lowest wins. Every mandate limit is checked here, against the owner of the capital rather
-                    than the key that signed — so a compromised agent key can do nothing its owner had not
-                    already authorised.
-                  </p>
-                  <span className="call">bid(id, repayAmount, reasoningRef)</span>
-                </div>
-              </div>
-
-              <div className="step">
-                <div>
-                  <span className="who">Anyone</span>
-                  <h4>Award it</h4>
-                  <p>
-                    Permissionless, because the outcome is already fixed by state and there is nothing for a
-                    caller to steer. Cash moves lender to borrower directly and never rests in the contract.
-                    Hedera is asked, in the same transaction, to settle this loan at maturity.
-                  </p>
-                  <span className="call">award(id) → HSS.scheduleCall(claim, dueAt + 60)</span>
-                </div>
-              </div>
-
-              <div className="step">
-                <div>
-                  <span className="who">The network</span>
-                  <h4>Record any coupon that falls inside the term</h4>
-                  <p>
-                    Booked at award, the same way settlement is. The escrow is the holder of record while the
-                    bond is pledged, so the security pays the market — and the market credits the borrower.
-                  </p>
-                  <span className="call">recordCoupon(id, couponId) · scheduled, unattended</span>
-                </div>
-              </div>
-
-              <div className="step">
-                <div>
-                  <span className="who">Borrower, before the date</span>
-                  <h4>Repay</h4>
-                  <p>
-                    The amount owed is the agreed repayment less any coupon the escrow collected. The pending
-                    settlement call is deleted in the same transaction, so nothing fires later against a
-                    closed position.
-                  </p>
-                  <span className="call">repay(id) → repaymentDue(id), not repayAmount</span>
-                </div>
-              </div>
-
-              <div className="step">
-                <div>
-                  <span className="who">The network, after it</span>
-                  <h4>Or settle it without being asked</h4>
-                  <p>
-                    Sixty seconds past the date, the scheduled call runs. It pays the lender recorded in
-                    storage, never <code>msg.sender</code> — which is exactly why it is safe to hand to a
-                    caller nobody chose.
-                  </p>
-                  <span className="call">claim(id) · scheduled=true · payer 0.0.10382007</span>
-                </div>
-              </div>
-            </div>
-
-            <figure className="figure">
-              <StateMachine />
-            </figure>
-          </Rise>
-        </div>
-      </section>
-
-      {/* the mandate */}
-      <section className="band paper">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">The mandate</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>
-              Authority is hard. Judgement is soft.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              These are different things and this project keeps them apart. One is enforced by a contract and
-              one is a paragraph of English you can rewrite over lunch.
-            </p>
-            <div className="pair">
-              <div>
-                <h4>Mandate · on chain, enforced</h4>
-                <p style={{ fontFamily: "var(--mono)", fontSize: 12.5, lineHeight: 2 }}>
-                  agent<br />
-                  maxPerDeal<br />
-                  maxTotal<br />
-                  minRateBps<br />
-                  maxTerm<br />
-                  allowedAssets
-                </p>
-              </div>
-              <div>
-                <h4>Strategy · off chain, editable</h4>
-                <p>
-                  &ldquo;Senior secured paper only. Require the document to state seniority and a maturity
-                  explicitly. Never bid when the loan runs past the instrument&rsquo;s maturity. Add 200bps
-                  for an issuer you cannot identify. When anything material is unclear, do not bid.&rdquo;
-                </p>
-              </div>
-            </div>
-            <p className="sub" style={{ marginTop: 22, maxWidth: "56ch" }}>
-              Standing bids count against the ceiling as well as funded positions. Without that, holding the
-              best bid on twenty auctions would pass every limit check separately and breach the ceiling the
-              moment they all awarded.
-            </p>
-          </Rise>
-        </div>
-      </section>
-
-      {/* the coupon, worked */}
-      <section className="band void">
-        <div className="wrap">
-          <Rise>
-            <p className="eyebrow">The manufactured payment</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>
-              Worked, on a real loan.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              Request #12. Two coupons fell inside a thirty-minute term, and the agent priced both of them
-              into its bid <em>before</em> either had paid anything — from the coupon&rsquo;s own terms, not
-              from a snapshot that did not exist yet.
+            <p className="num">One</p>
+            <h2>Six calls. Two of them are not yours.</h2>
+            <p className="sub">
+              A borrower locks the bond and names a term. Lenders bid. Whoever awards it sets the clock
+              running — and hands the ending to Hedera.
             </p>
 
-            <div className="figure">
-              <div className="working">
-                <div className="row"><span>principal</span><span>2,000.000000</span></div>
-                <div className="row"><span>interest, 30 minutes</span><span>+0.007828</span></div>
-                <div className="row"><span>coupon #10, projected at bid time</span><span>+28.767123</span></div>
-                <div className="row"><span>coupon #11, projected at bid time</span><span>+28.767123</span></div>
-                <div className="row total"><span>the agent bid</span><span>2,057.542074</span></div>
-              </div>
-              <p className="sub" style={{ margin: "26px 0 0" }}>
-                Then the network recorded coupon #10 at its record date, and the borrower&rsquo;s obligation
-                fell by exactly that amount. Coupon #11 was recorded by hand after the loan had already
-                closed, so there was nothing left to net against — and it survived as a debt the lender paid
-                out of pocket.
+            <div className="plate">
+              <Lifecycle />
+              <p className="cap">
+                <strong>Nobody has to come back.</strong> At award the market asks the network to close the
+                loan at maturity, and the network does it — paying its own fee, whether or not anyone is
+                watching.
               </p>
-              <div className="working" style={{ marginTop: 22 }}>
-                <div className="row"><span>agreed repayment</span><span>2,057.542074</span></div>
-                <div className="row"><span>coupon #10, netted at settlement</span><span>−28.767123</span></div>
-                <div className="row"><span>coupon #11, paid by the lender after</span><span>−28.767123</span></div>
-                <div className="row total"><span>the borrower&rsquo;s true cost</span><span>0.007828</span></div>
-              </div>
-              <figcaption style={{ textAlign: "left", marginTop: 20 }}>
-                The interest, and nothing else. Every unit charged for income the escrow would collect came
-                back to the borrower who never stopped owning the bond.
-              </figcaption>
+            </div>
+
+            <div className="checks">
+              <a href={link.award} target="_blank" rel="noreferrer">
+                <span className="k">The call that books it</span>
+                <span className="v">award() → scheduleCall</span>
+              </a>
+              <a href={link.claim} target="_blank" rel="noreferrer">
+                <span className="k">Why it is safe to hand over</span>
+                <span className="v">claim() pays storage, not the caller</span>
+              </a>
+              <a href={link.scheduled} target="_blank" rel="noreferrer">
+                <span className="k">It actually happened</span>
+                <span className="v">scheduled=true, payer 0.0.10382007</span>
+              </a>
             </div>
           </Rise>
         </div>
       </section>
 
-      {/* compliance */}
-      <section className="band paper">
+      {/* ── two ── */}
+      <section className="chapter">
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">Compliance</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>
-              Four controls, and none of them can destroy a position.
-            </h2>
-            <div className="pair">
-              <div>
-                <h4>Pause</h4>
-                <p>Halts every transfer of the token, so nothing settles. The collateral stays escrowed and the position stays open. Lifted, it completes.</p>
-              </div>
-              <div>
-                <h4>Freeze an address</h4>
-                <p>Removes it from the control list — <code>isFrozen</code> keeps reading false, which is why the interface reads a lens rather than the token.</p>
-              </div>
-              <div>
-                <h4>Revoke KYC</h4>
-                <p>An SSI credential with a validity window and an issuer, not a boolean. Settlement to that party stops until a new one is granted.</p>
-              </div>
-              <div>
-                <h4>Delist the escrow</h4>
-                <p>Both counterparties can be in perfect standing and nothing still moves, because the market itself is the sender of every settlement.</p>
-              </div>
-            </div>
-            <p className="sub" style={{ marginTop: 24, maxWidth: "58ch" }}>
-              A blocked party is told which permission is missing rather than reading a bare revert. That is
-              what <code>ComplianceLens</code> is for — it takes no part in settlement and exists only to
-              answer <em>why not</em>.
+            <p className="num">Two</p>
+            <h2>It shows its working before it knows if it won.</h2>
+            <p className="sub">
+              There is no price to read, so a lender reads the bond&rsquo;s own paperwork instead. Then it
+              writes down why — in public, in order, before the outcome exists.
             </p>
+
+            <div className="plate">
+              <Underwriting />
+              <p className="cap">
+                A model can be wrong. It cannot be wrong <strong>and then pretend it was not</strong>, and
+                it cannot spend more than its owner allowed.
+              </p>
+            </div>
+
+            <div className="checks">
+              <a href={link.topic} target="_blank" rel="noreferrer">
+                <span className="k">The reasoning, in public</span>
+                <span className="v">HCS topic 0.0.10367534</span>
+              </a>
+              <a href={link.verify} target="_blank" rel="noreferrer">
+                <span className="k">Check a hash yourself</span>
+                <span className="v">verify-reasoning.sh</span>
+              </a>
+              <a href={link.mandate} target="_blank" rel="noreferrer">
+                <span className="k">The limits it cannot exceed</span>
+                <span className="v">Mandates.sol</span>
+              </a>
+            </div>
           </Rise>
         </div>
       </section>
 
-      {/* the negative space */}
-      <section className="band void" style={{ borderBottom: "none" }}>
+      {/* ── three ── */}
+      <section className="chapter">
         <div className="wrap">
           <Rise>
-            <p className="eyebrow">Deliberately absent</p>
-            <h2 className="claim" style={{ fontSize: "clamp(24px,3.2vw,36px)" }}>
-              What this does not have.
-            </h2>
-            <p className="lede" style={{ maxWidth: "56ch" }}>
-              Easier to verify than anything it does have — search the contract and none of these appear.
+            <p className="num">Three</p>
+            <h2>An issuer can stop it. Nobody can destroy it.</h2>
+            <p className="sub">
+              These are regulated securities. Four controls can halt a settlement at any moment — and all
+              four do the same thing to the loan, which is nothing.
             </p>
 
-            <div className="nots">
-              <div>
-                <b>No price feed</b>
-                <p>Not a single oracle read. The repayment is fixed at award by agreement, and every later branch depends on time and on whether the money arrived.</p>
-              </div>
-              <div>
-                <b>No liquidator</b>
-                <p>Nothing can be seized early, at any price, by anyone. The haircut agreed at award is the lender&rsquo;s whole protection, which is why it is theirs to choose.</p>
-              </div>
-              <div>
-                <b>No margin call</b>
-                <p>A position cannot be topped up or unwound mid-term. It has two endings and reaches one of them.</p>
-              </div>
-              <div>
-                <b>No governance token</b>
-                <p>No treasury, no emissions, no vote that could change the terms of a loan after it was struck.</p>
-              </div>
-              <div>
-                <b>No custody</b>
-                <p>Cash moves lender to borrower directly. The contract holds collateral and nothing else — check its cash balance, it is zero.</p>
-              </div>
+            <div className="plate">
+              <Controls />
             </div>
 
-            <div style={{ marginTop: 44, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link className="btn" href="/borrow">Raise cash against a security</Link>
-              <Link className="btn ghost" href="/">See the market</Link>
+            <div className="checks">
+              <a href={link.lens} target="_blank" rel="noreferrer">
+                <span className="k">Which permission is missing</span>
+                <span className="v">ComplianceLens.check()</span>
+              </a>
+              <a href={link.bond} target="_blank" rel="noreferrer">
+                <span className="k">The security itself</span>
+                <span className="v">RDN27, via ATS</span>
+              </a>
+              <a href={link.market} target="_blank" rel="noreferrer">
+                <span className="k">The market</span>
+                <span className="v">0x9040986D…3121a4</span>
+              </a>
+            </div>
+          </Rise>
+        </div>
+      </section>
+
+      {/* what is not in it */}
+      <section className="band" style={{ borderBottom: "none", paddingTop: 104, paddingBottom: 124 }}>
+        <div className="wrap">
+          <Rise>
+            <h2 className="claim" style={{ fontSize: "clamp(26px,3.6vw,40px)", textAlign: "center", maxWidth: "22ch", margin: "0 auto" }}>
+              And five things it does not contain.
+            </h2>
+            <p className="sub" style={{ textAlign: "center", maxWidth: "48ch", margin: "18px auto 0" }}>
+              Easier to verify than anything it does — search the contract and none of these appear.
+            </p>
+
+            <div className="checks" style={{ marginTop: 44 }}>
+              {[
+                ["No price feed", "not one oracle read"],
+                ["No liquidator", "nothing can be seized early"],
+                ["No margin call", "the terms cannot change mid-loan"],
+                ["No governance token", "no vote can rewrite a deal"],
+                ["No custody", "the contract's cash balance is zero"],
+              ].map(([k, v]) => (
+                <a key={k} href={link.market} target="_blank" rel="noreferrer">
+                  <span className="k">{k}</span>
+                  <span className="v">{v}</span>
+                </a>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 48, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <Link className="btn" href="/borrow">Borrow</Link>
+              <Link className="btn ghost" href="/market">See the market</Link>
             </div>
           </Rise>
         </div>
