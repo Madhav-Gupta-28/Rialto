@@ -1775,6 +1775,16 @@ web app → CLI plus HashScan links. The mechanism survives all three cuts.
    7,023,179 gas / 8.08 HBAR. Day 1 is the gate.
 2. **Both sides of the market are simulated in the demo.** There are no organic
    borrowers or lenders on day one. Say so; do not imply traction.
+3. **A coupon can be handed to the network twice.** `scheduleCoupon` books a
+   call and emits `CouponScheduled`, but keeps no mapping of what is already
+   booked, so nothing on chain can be read to tell. The front end therefore goes
+   on offering the button after a schedule exists, and pressing it again books a
+   second call. That is wasteful rather than dangerous — the duplicate fires,
+   finds `couponRecorded` already true and reverts `AlreadyRecorded`, leaving the
+   amount untouched — but it costs a gas deposit and a reserved second for
+   nothing. The fix is a `couponSchedule[id][couponId]` mapping, which is a
+   redeploy; the front end could also read the event log instead. Neither is
+   worth doing between now and submission.
 3. **The lender must be whitelisted on the security before bidding**, or cannot
    receive collateral on default. Enforcing this at bid time is desirable and is
    not in v1.
