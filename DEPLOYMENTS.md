@@ -283,18 +283,23 @@ edited, a content hash says *what* it was and cannot.
 ### Check it end to end
 
 ```bash
-MIRROR=https://testnet.mirrornode.hedera.com/api/v1
-
-# the reasoning, as HCS ordered it
-curl -s "$MIRROR/topics/0.0.10367534/messages?limit=1&order=desc" \
-  | jq -r '.messages[0].message' | base64 -d | tee msg.json
-cast keccak -- 0x$(xxd -p -c 999999 msg.json)
-# 0xff58c2ae6c7ec3495667ef20c4b6f0e95eb6bb34a7f0452ee68b8d022f2c2a00
-
-# what the bid on-chain committed to
-cast call 0x39535E5FC4C2B285561A00E66d1563Debb4C0C9C "bestBid(uint256)" 1 --rpc-url $RPC
-# ...reasoningRef == 0xff58c2ae6c7ec349...
+script/verify-reasoning.sh 9
 ```
+
+```
+reassembled        1160 bytes from 2 chunk(s)
+consensus at       1788788687.854026237
+it says            bid 2000381816 at 696bps
+keccak(reasoning)  0xdc59ee25d5886ff0d34466f04f0af185f62d941a5f4d353a55ba9d118e69fd5b
+reasoningRef       0xdc59ee25d5886ff0d34466f04f0af185f62d941a5f4d353a55ba9d118e69fd5b
+```
+
+**Reassembly is not a detail.** The SDK splits a message over 1,024 bytes into
+chunks, and the hash is over the whole message — so reading `messages[0]` and
+hashing it works for a terse opinion and silently fails for a considered one. A
+model's reasoning routinely runs past that limit; request 9 above needed two
+chunks. Anyone checking a single message and finding no match is looking at half
+an explanation.
 
 Measured on this run:
 
