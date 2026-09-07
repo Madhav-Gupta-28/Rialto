@@ -41,6 +41,40 @@ describe("minimumRepayment", () => {
 });
 
 describe("buildPrompt", () => {
+  /**
+   * Observed live before this existed: a correct, well-argued opinion on the
+   * RDN27 prospectus priced at 80bps against a 500bps mandate, and `decide`
+   * threw it away. A model asked to price a loan without being told the floor,
+   * or how a repayment becomes a rate, is being set up to fail.
+   */
+  it("tells the model the floor it has to clear, and how a repayment becomes a rate", () => {
+    const m: Mandate = { maxPerDeal: 10n ** 12n, maxTotal: 10n ** 12n, minRateBps: 500, maxTerm: 5_184_000n };
+    const p = buildPrompt(req, "hello", strategy, m);
+
+    expect(p.instruction).toContain("500 bps");
+    expect(p.instruction).toContain("rate_bps = (repayAmount - principal)");
+    // The exact number, so the model never has to do the arithmetic itself.
+    expect(p.instruction).toContain(String(minimumRepayment(req.principal, req.term, m.minRateBps)));
+  });
+
+  it("says a repayment is the whole sum owed, not the interest", () => {
+    const p = buildPrompt(req, "hello", strategy);
+    expect(p.system).toContain("principal included");
+  });
+
+  it("leaves the pricing block out when there is no mandate to quote", () => {
+    const p = buildPrompt(req, "hello", strategy);
+    expect(p.instruction).not.toContain("rate_bps =");
+  });
+
+  /** The mandate is the owner's instruction; it must not land in the evidence. */
+  it("keeps the floor in the instruction, never in the document envelope", () => {
+    const m: Mandate = { maxPerDeal: 10n ** 12n, maxTotal: 10n ** 12n, minRateBps: 500, maxTerm: 5_184_000n };
+    const p = buildPrompt(req, "hello", strategy, m);
+    expect(p.evidence).not.toContain("rate_bps");
+    expect(p.evidence).not.toContain("500 bps");
+  });
+
   const strategy = "Senior secured only.";
 
   it("keeps the document out of the instruction text entirely", () => {

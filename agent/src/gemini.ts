@@ -17,6 +17,12 @@ export interface GeminiOptions {
   model?: string;
   timeoutMs?: number;
   maxTokens?: number;
+  /**
+   * Thinking is charged against `maxTokens`, so it is bounded rather than left
+   * dynamic — otherwise a long document can spend the whole budget deliberating
+   * and return nothing at all.
+   */
+  thinkingBudget?: number;
   maxEvidenceChars?: number;
   fetchImpl?: typeof fetch;
 }
@@ -26,6 +32,7 @@ export class GeminiReasoner implements Reasoner {
   readonly model: string;
   private readonly timeoutMs: number;
   private readonly maxTokens: number;
+  private readonly thinkingBudget: number;
   private readonly maxEvidenceChars: number;
   private readonly fetchImpl: typeof fetch;
 
@@ -34,7 +41,12 @@ export class GeminiReasoner implements Reasoner {
     this.apiKey = opts.apiKey;
     this.model = opts.model ?? "gemini-2.5-flash";
     this.timeoutMs = opts.timeoutMs ?? 30_000;
-    this.maxTokens = opts.maxTokens ?? 1024;
+    // 2.5-class models think before they answer, and those thinking tokens are
+    // spent out of `maxOutputTokens`. A budget sized for the answer alone is
+    // consumed entirely by the reasoning and the reply never arrives — which is
+    // what 1024 did on the first live call against a 1,347-character prospectus.
+    this.maxTokens = opts.maxTokens ?? 4096;
+    this.thinkingBudget = opts.thinkingBudget ?? 1024;
     this.maxEvidenceChars = opts.maxEvidenceChars ?? MAX_EVIDENCE_CHARS;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
@@ -65,6 +77,7 @@ export class GeminiReasoner implements Reasoner {
           ],
           generationConfig: {
             maxOutputTokens: this.maxTokens,
+            thinkingConfig: { thinkingBudget: this.thinkingBudget },
             // The schema is strict and `parseOpinion` discards anything that
             // misses it, so ask for JSON rather than hoping for it.
             responseMimeType: "application/json",
@@ -103,7 +116,10 @@ export class GeminiReasoner implements Reasoner {
     // Truncated output is invalid JSON, and `parseOpinion` would report it as
     // "reply was not JSON" — which points at the wrong problem entirely.
     if (candidate.finishReason === "MAX_TOKENS") {
-      throw new Error(`the model was cut off at ${this.maxTokens} tokens before finishing its answer`);
+      throw new Error(
+        `the model was cut off at ${this.maxTokens} tokens before finishing its answer` +
+          ` (thinking budget ${this.thinkingBudget}); raise GOOGLE_MAX_TOKENS`,
+      );
     }
 
     const text = (candidate.content?.parts ?? [])

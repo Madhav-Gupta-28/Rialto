@@ -72,6 +72,17 @@ export const config = {
   hcsTopicId: process.env.HCS_TOPIC_ID ?? "",
 
   /** The agent's brief. Soft, editable, and deliberately not on-chain. */
+  /**
+   * The standing brief. Soft, editable, and the underwriter's own words —
+   * unlike the mandate, which is on-chain and enforced.
+   *
+   * The last line is here because a model that reads properly refuses without
+   * it. The demonstration bond's prospectus says, honestly, that it "describes
+   * no real company", and a good underwriter declines to lend against a
+   * fictitious issuer — which is the right answer to the wrong question on a
+   * testnet. Naming the situation is the truthful fix; editing the disclaimer
+   * out of the document would not be.
+   */
   strategy:
     process.env.STRATEGY ??
     [
@@ -80,6 +91,9 @@ export const config = {
       "Never bid when the loan term runs past the instrument's maturity.",
       "Add 200bps for an issuer you cannot identify from the document.",
       "When anything material is unclear, do not bid.",
+      "This is a Hedera testnet demonstration and the instrument is a demonstration bond:",
+      "its own notice that it describes no real company is expected, and is a flag to record",
+      "rather than a reason on its own to decline. Assess the terms the document states.",
     ].join(" "),
 
   pollMs: Number(process.env.POLL_MS ?? 5_000),
@@ -94,6 +108,8 @@ export const config = {
   model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   googleApiKey: process.env.GOOGLE_API_KEY ?? "",
   googleModel: process.env.GOOGLE_MODEL ?? "gemini-2.5-flash",
+  /** Thinking is spent from this, so it has to cover deliberation and the answer. */
+  googleMaxTokens: Number(process.env.GOOGLE_MAX_TOKENS ?? 4096),
   /** Bounded by the auction, not by patience. A slow underwriter misses the window. */
   reasonerTimeoutMs: Number(process.env.REASONER_TIMEOUT_MS ?? 30_000),
 } as const;

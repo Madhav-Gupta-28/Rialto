@@ -46,8 +46,9 @@ export async function formOpinion(
   req: RequestView,
   documentText: string,
   strategy: string,
+  mandate?: Mandate,
 ): Promise<OpinionResult> {
-  const p = buildPrompt(req, documentText, strategy);
+  const p = buildPrompt(req, documentText, strategy, mandate);
 
   let raw: string;
   try {

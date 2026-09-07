@@ -79,12 +79,27 @@ describe("GeminiReasoner", () => {
     );
   });
 
-  /** Truncated output is invalid JSON; blaming the parser points at the wrong thing. */
-  it("says when the answer was cut off rather than letting it fail as bad JSON", async () => {
+  /**
+   * Truncated output is invalid JSON, and blaming the parser points at the
+   * wrong thing. This fired on the very first live call: a 2.5-class model
+   * spends thinking tokens out of the same budget, so a limit sized for the
+   * answer alone returns nothing at all.
+   */
+  it("says when the answer was cut off, and what to raise", async () => {
     const { impl } = stub({ candidates: [{ content: { parts: [{ text: '{"bid":tr' }] }, finishReason: "MAX_TOKENS" }] });
     await expect(new GeminiReasoner({ apiKey: "k", fetchImpl: impl }).think("s", "i", "e")).rejects.toThrow(
-      /cut off at 1024 tokens/,
+      /cut off at 4096 tokens.*thinking budget 1024.*GOOGLE_MAX_TOKENS/,
     );
+  });
+
+  /** Thinking is charged against maxOutputTokens, so it cannot be left unbounded. */
+  it("bounds the thinking budget so it cannot eat the whole answer", async () => {
+    const { impl, calls } = stub(answer);
+    await new GeminiReasoner({ apiKey: "k", fetchImpl: impl }).think("s", "i", "e");
+    const cfg = body(calls).generationConfig;
+    expect(cfg.maxOutputTokens).toBe(4096);
+    expect(cfg.thinkingConfig.thinkingBudget).toBe(1024);
+    expect(cfg.thinkingConfig.thinkingBudget).toBeLessThan(cfg.maxOutputTokens);
   });
 
   it("carries the reason a request was refused", async () => {

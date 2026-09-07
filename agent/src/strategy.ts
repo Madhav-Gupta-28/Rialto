@@ -80,7 +80,7 @@ const SENTINEL = "-----RIALTO-DOCUMENT-BOUNDARY-----";
  * present in the document is neutralised, so a document cannot close its own
  * envelope and continue as instructions.
  */
-export function buildPrompt(req: RequestView, documentText: string, strategy: string): Prompt {
+export function buildPrompt(req: RequestView, documentText: string, strategy: string, mandate?: Mandate): Prompt {
   const system = [
     "You are a credit underwriter. You read an offering document and decide whether to lend against it,",
     "with your own capital at risk.",
@@ -92,9 +92,29 @@ export function buildPrompt(req: RequestView, documentText: string, strategy: st
     "Answer with a single JSON object and nothing else:",
     '{ "bid": boolean, "repayAmount": string, "reasons": string[], "flags": string[] }',
     "`repayAmount` is a decimal integer string in the smallest unit of the cash token.",
+    "It is the whole sum repaid at maturity, principal included — not the interest, and not a rate.",
     "If anything material is unclear, set bid to false. Declining to bid is a valid answer and",
     "is usually the right one when the document does not establish seniority or maturity.",
   ].join("\n");
+
+  // The mandate is the capital owner's own instruction, so unlike the document
+  // it belongs in the instruction section. Without it the model is asked to
+  // price a loan while being told neither the floor it must clear nor how a
+  // repayment turns into a rate — and a good reading of the prospectus then
+  // loses to a number pulled out of the air. Observed live: a correct,
+  // well-argued opinion priced at 80bps against a 500bps mandate, refused by
+  // `decide` before it ever reached the chain.
+  const pricing = mandate
+    ? [
+        "",
+        "Pricing. The repayment implies an annualised simple rate:",
+        "    rate_bps = (repayAmount - principal) * 10000 * 31536000 / (principal * term_seconds)",
+        `Your mandate will not accept anything below ${mandate.minRateBps} bps, so the smallest`,
+        `repayment that clears it is ${minimumRepayment(req.principal, req.term, mandate.minRateBps)}.`,
+        "Bid at or above that. Price risk by adding to it, never by going under —",
+        "a bid below the floor is discarded and is the same as not bidding at all.",
+      ]
+    : [];
 
   const instruction = [
     `Request ${req.id}.`,
@@ -103,6 +123,7 @@ export function buildPrompt(req: RequestView, documentText: string, strategy: st
     `Collateral: ${req.collateralAmount} units of ${req.collateral}.`,
     `Document hash committed on-chain: ${req.docHash}`,
     `Hash was read from the security itself: ${req.docFromChain ? "yes" : "NO — treat with suspicion"}`,
+    ...pricing,
     "",
     "Your standing brief:",
     strategy,

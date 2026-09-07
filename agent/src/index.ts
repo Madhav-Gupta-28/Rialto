@@ -131,9 +131,10 @@ export async function considerRequest(
           apiKey: config.googleApiKey,
           model: config.googleModel,
           timeoutMs: config.reasonerTimeoutMs,
+          maxTokens: config.googleMaxTokens,
         })
       : new RuleBasedReasoner(mandate, view);
-  const { opinion, why } = await formOpinion(reasoner, view, outcome.text, config.strategy);
+  const { opinion, why } = await formOpinion(reasoner, view, outcome.text, config.strategy, mandate);
   if (!opinion) return retry(`#${id} declined — ${why}`);
 
   const d = decide(opinion, view, mandate, await committed(c, underwriter));
