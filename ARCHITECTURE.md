@@ -1419,6 +1419,33 @@ not match the on-chain hash is reasoning about a document nobody committed to.**
 Step 8 happens **before** step 9 and therefore before the outcome is known. The
 HCS consensus timestamp is what makes the reasoning non-retrofittable.
 
+### 6.1b Two reasoners, one interface
+
+`Reasoner` has a single method — `think(system, instruction, evidence)` — and
+two implementations. Which one runs depends on whether `ANTHROPIC_API_KEY` is
+set, and the agent prints which on startup rather than leaving anyone to guess.
+
+| | `ClaudeReasoner` | `RuleBasedReasoner` |
+|---|---|---|
+| Needs | an API key | nothing |
+| Reads the document | yes | no — matches patterns in it |
+| Used when | a key is present | there is no key |
+
+The rule-based one exists so the pipeline can be demonstrated and tested end to
+end with no key and no network, and it is deliberately honest about its limits:
+it looks for a sentence establishing seniority and a maturity, then prices off
+the mandate floor. It cannot weigh a covenant, notice that a maturity falls
+inside the loan term, or tell a guarantee from a comfort letter. **A formula
+cannot read a prospectus, which is the entire argument for §2.5.** It is a
+fallback, not the intended path.
+
+Both produce an identical on-chain bid and both are held to the same mandate by
+the same contract. The difference is the quality of the opinion, never its
+authority — which is the same thing that is true of a human underwriter and a
+careless one.
+
+---
+
 ### 6.2 Mandate vs strategy
 
 ```

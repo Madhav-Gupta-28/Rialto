@@ -10,6 +10,7 @@ import { fetchAndVerify } from "./document.js";
 import { manufacturedExposure } from "./coupons.js";
 import { decide, rateBps, type RequestView } from "./strategy.js";
 import { formOpinion, RuleBasedReasoner } from "./reason.js";
+import { ClaudeReasoner } from "./claude.js";
 import { HcsPublisher, LocalPublisher, type Publisher, type ReasoningRecord } from "./hcs.js";
 
 const log = (...a: unknown[]) => console.log(...a);
@@ -115,7 +116,16 @@ export async function considerRequest(
     docFromChain: req.docFromChain,
   };
 
-  const reasoner = new RuleBasedReasoner(mandate, view);
+  // A key means the document gets read; no key means it gets pattern-matched.
+  // Both produce an identical on-chain bid and both are held to the same
+  // mandate, so the difference is the quality of the opinion, not its authority.
+  const reasoner = config.anthropicApiKey
+    ? new ClaudeReasoner({
+        apiKey: config.anthropicApiKey,
+        model: config.model,
+        timeoutMs: config.reasonerTimeoutMs,
+      })
+    : new RuleBasedReasoner(mandate, view);
   const { opinion, why } = await formOpinion(reasoner, view, outcome.text, config.strategy);
   if (!opinion) return retry(`#${id} declined — ${why}`);
 
@@ -202,6 +212,11 @@ async function main(): Promise<void> {
   log(`  agent key   ${c.account.address}`);
   log(`  bidding for ${underwriter}${underwriter === c.account.address ? " (itself)" : ""}`);
   log(`  market      ${config.market}`);
+  log(
+    config.anthropicApiKey
+      ? `  reasoner    ${config.model} — reads the prospectus`
+      : `  reasoner    rule-based fallback — no ANTHROPIC_API_KEY, so the document is pattern-matched, not read`,
+  );
   log(`  strategy    ${config.strategy}`);
   log("");
 

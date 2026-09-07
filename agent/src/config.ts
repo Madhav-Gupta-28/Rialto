@@ -83,4 +83,15 @@ export const config = {
     ].join(" "),
 
   pollMs: Number(process.env.POLL_MS ?? 5_000),
+
+  /**
+   * The reasoner. With a key the agent reads the prospectus with a model; with
+   * no key it falls back to `RuleBasedReasoner` and says so on startup, so the
+   * demo never depends on a network call and nobody is left guessing which one
+   * produced a bid.
+   */
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
+  /** Bounded by the auction, not by patience. A slow underwriter misses the window. */
+  reasonerTimeoutMs: Number(process.env.REASONER_TIMEOUT_MS ?? 30_000),
 } as const;
