@@ -38,10 +38,32 @@ export interface Outcome {
   settled: boolean;
   /** Worth printing. A request that is simply not ours is not news. */
   notable: boolean;
+  /** Leave this request alone for a while before trying again. */
+  cooldownMs?: number;
 }
 
 const settled = (line: string, notable = true): Outcome => ({ line, settled: true, notable });
 const retry = (line: string, notable = true): Outcome => ({ line, settled: false, notable });
+
+/**
+ * A retry that waits first.
+ *
+ * Forming an opinion costs a model call, and an unsettled request is
+ * reconsidered on every pass. So a reasoner that is refusing — a rate limit,
+ * most obviously — is asked again five seconds later, and again, for every open
+ * auction at once. Four live requests on a five-second poll is forty-eight
+ * calls a minute against a quota that allows a fraction of that, which turns a
+ * brief refusal into a permanent one the agent inflicted on itself.
+ *
+ * Observed live: a free-tier key hit 429, and the loop then kept it there.
+ */
+const REASONER_COOLDOWN_MS = 60_000;
+const backOff = (line: string): Outcome => ({
+  line,
+  settled: false,
+  notable: true,
+  cooldownMs: REASONER_COOLDOWN_MS,
+});
 
 /**
  * Consider one request, from end to end.
@@ -135,7 +157,14 @@ export async function considerRequest(
         })
       : new RuleBasedReasoner(mandate, view);
   const { opinion, why } = await formOpinion(reasoner, view, outcome.text, config.strategy, mandate);
-  if (!opinion) return retry(`#${id} declined — ${why}`);
+  // A refusal to bid is an underwriting outcome and costs nothing to repeat; a
+  // reasoner that could not answer at all is a failure, and asking it again
+  // immediately is what exhausts a quota.
+  if (!opinion) {
+    return why.startsWith("the reasoner failed")
+      ? backOff(`#${id} declined — ${why}`)
+      : retry(`#${id} declined — ${why}`);
+  }
 
   const d = decide(opinion, view, mandate, await committed(c, underwriter));
   if (!d.bid) {
@@ -235,6 +264,10 @@ async function main(): Promise<void> {
   log("");
 
   const seen = new Set<string>();
+  /** Requests being left alone for a moment, and until when. */
+  const waitUntil = new Map<string, number>();
+  /** The last thing said about each request, so a stuck one is not repeated. */
+  const lastSaid = new Map<string, string>();
   let lastError = "";
   let repeats = 0;
 
@@ -242,10 +275,20 @@ async function main(): Promise<void> {
     try {
       const n = await requestCount(c);
       for (let i = 0n; i < n; i++) {
-        if (seen.has(i.toString())) continue;
+        const key = i.toString();
+        if (seen.has(key)) continue;
+        if ((waitUntil.get(key) ?? 0) > Date.now()) continue;
+
         const outcome = await considerRequest(c, i, underwriter, pub);
-        if (outcome.notable) log(outcome.line);
-        if (outcome.settled) seen.add(i.toString());
+
+        // Say it once. A request stuck on the same failure is worth knowing
+        // about, not worth repeating every pass until it scrolls the bid away.
+        if (outcome.notable && lastSaid.get(key) !== outcome.line) {
+          log(outcome.line);
+          lastSaid.set(key, outcome.line);
+        }
+        if (outcome.cooldownMs) waitUntil.set(key, Date.now() + outcome.cooldownMs);
+        if (outcome.settled) seen.add(key);
       }
       if (lastError) {
         log(`  recovered after ${repeats + 1} failed ${repeats === 0 ? "poll" : "polls"}`);
