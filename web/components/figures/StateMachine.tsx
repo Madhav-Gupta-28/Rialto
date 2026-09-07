@@ -69,7 +69,7 @@ export default function StateMachine() {
       <g style={{ transition: "opacity .35s ease" }} opacity={active || step < 0 ? 1 : 0.62}>
         <rect
           x={x - 74} y={y - 27} width={148} height={54} rx={3}
-          fill={active ? "rgba(255,255,255,.03)" : "none"}
+          fill={active ? "rgba(20,19,15,.04)" : "none"}
           stroke={colour} strokeWidth={active ? 1.5 : 1}
           style={{ transition: "stroke .35s ease" }}
         />

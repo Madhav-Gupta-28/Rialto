@@ -30,10 +30,10 @@ export default function PriceGap() {
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const s = getComputedStyle(document.documentElement);
-    const ink = s.getPropertyValue("--paper-ink").trim() || "#111110";
-    const mut = s.getPropertyValue("--paper-muted").trim() || "#6b6760";
-    const rule = s.getPropertyValue("--paper-line").trim() || "#d9d5cc";
-    const bad = s.getPropertyValue("--blocked").trim() || "#c0705e";
+    const ink = s.getPropertyValue("--ink").trim() || "#14130f";
+    const mut = s.getPropertyValue("--muted").trim() || "#7d786f";
+    const rule = s.getPropertyValue("--line").trim() || "#ddd9d0";
+    const bad = s.getPropertyValue("--blocked").trim() || "#9c3d2c";
 
     // Deterministic, so the picture is identical every time anyone sees it.
     let seed = 11;
