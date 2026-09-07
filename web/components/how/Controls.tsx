@@ -4,34 +4,33 @@ import { useEffect, useRef, useState } from "react";
 import { link } from "@/lib/links";
 
 /**
- * What an issuer can do to a live loan, and what happens to the loan.
+ * What an issuer can do to a live loan.
  *
- * The answer is the same for all four controls and it is the point of the
- * section: the position holds. So the four are drawn as gates over one rail —
- * shut one and settlement stops there, open it and settlement continues. The
- * collateral never moves either way.
+ * Four switches over one line. Flip any of them and the line breaks — flip it
+ * back and the loan carries on. The collateral never moves either way, which is
+ * the only sentence this section needs.
  *
- * The proof underneath is the strongest single fact in the project: the
- * network's own scheduled call hit one of these gates and reverted.
+ * Then the fact that makes it real: Hedera's own scheduled call hit one of
+ * these and failed.
  */
 
-const GATES = [
-  { name: "pause", note: "every transfer halts" },
-  { name: "freeze", note: "one address comes off the list" },
-  { name: "revoke KYC", note: "a credential expires" },
-  { name: "delist the escrow", note: "the market itself is stopped" },
+const SWITCHES = [
+  { name: "pause", note: "the whole bond" },
+  { name: "freeze", note: "one address" },
+  { name: "un-KYC", note: "one credential" },
+  { name: "delist", note: "the market" },
 ];
 
 export default function Controls() {
   const ref = useRef<HTMLDivElement>(null);
   const [shut, setShut] = useState<number | null>(null);
-  const [n, setN] = useState(0);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setN(2);
+      setLive(true);
       setShut(1);
       return;
     }
@@ -39,17 +38,16 @@ export default function Controls() {
       ([e]) => {
         if (!e?.isIntersecting) return;
         io.disconnect();
-        setN(1);
+        setLive(true);
         let i = 0;
         const id = setInterval(() => {
-          setShut(i % GATES.length);
+          setShut(i % 5 === 4 ? null : i % 5);
           i += 1;
-          if (i > 8) {
+          if (i > 14) {
             clearInterval(id);
             setShut(null);
-            setN(2);
           }
-        }, 900);
+        }, 850);
       },
       { rootMargin: "-70px" },
     );
@@ -59,8 +57,8 @@ export default function Controls() {
 
   return (
     <div ref={ref}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${GATES.length}, 1fr)`, gap: 2 }}>
-        {GATES.map((g, i) => {
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 2 }}>
+        {SWITCHES.map((g, i) => {
           const closed = shut === i;
           return (
             <div
@@ -69,19 +67,17 @@ export default function Controls() {
                 border: "1px solid var(--ink)",
                 background: closed ? "var(--ink)" : "transparent",
                 color: closed ? "var(--paper)" : "var(--ink)",
-                padding: "20px 18px 18px",
-                transition: "background .4s ease, color .4s ease",
-                opacity: n > 0 ? 1 : 0,
+                padding: "13px 14px 11px",
+                transition: "background .35s ease, color .35s ease",
+                opacity: live ? 1 : 0,
               }}
             >
-              <p style={{ fontFamily: "var(--mono)", fontSize: 12.5, letterSpacing: ".06em", margin: "0 0 6px" }}>
-                {g.name}
-              </p>
+              <p style={{ fontFamily: "var(--mono)", fontSize: 12, margin: "0 0 3px" }}>{g.name}</p>
               <p
                 style={{
-                  fontSize: 12.5, margin: 0,
-                  color: closed ? "rgba(244,242,237,.7)" : "var(--muted)",
-                  transition: "color .4s ease",
+                  fontSize: 11.5, margin: 0,
+                  color: closed ? "rgba(244,242,237,.65)" : "var(--muted)",
+                  transition: "color .35s ease",
                 }}
               >
                 {g.note}
@@ -91,48 +87,65 @@ export default function Controls() {
         })}
       </div>
 
-      <p
-        style={{
-          textAlign: "center", fontSize: 16, color: "var(--ink)", margin: "26px 0 0",
-          minHeight: 24,
-        }}
-      >
+      {/* the line those switches sit on */}
+      <svg viewBox="0 0 800 46" width="100%" style={{ marginTop: 14, display: "block" }} aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => {
+          const x = 100 + i * 200;
+          return (
+            <line key={i} x1={x} y1={0} x2={x} y2={14} stroke="var(--line)" strokeWidth={1} />
+          );
+        })}
+        <line x1={20} y1={26} x2={780} y2={26} stroke="var(--line)" strokeWidth={2} />
+        {shut !== null && (
+          <line
+            x1={100 + shut * 200 - 26} y1={26} x2={100 + shut * 200 + 26} y2={26}
+            stroke="var(--paper)" strokeWidth={5}
+          />
+        )}
+        {shut !== null && (
+          <>
+            <line x1={100 + shut * 200 - 9} y1={17} x2={100 + shut * 200 + 9} y2={35}
+                  stroke="var(--ink)" strokeWidth={2} />
+            <line x1={100 + shut * 200 - 9} y1={35} x2={100 + shut * 200 + 9} y2={17}
+                  stroke="var(--ink)" strokeWidth={2} />
+          </>
+        )}
+      </svg>
+
+      <p style={{ textAlign: "center", fontSize: 15.5, color: "var(--ink)", margin: "12px 0 0", minHeight: 22 }}>
         {shut !== null ? (
-          <>Settlement stops. <span style={{ color: "var(--muted)" }}>The collateral does not move.</span></>
-        ) : n > 1 ? (
-          <>Every gate open. <span style={{ color: "var(--muted)" }}>The loan completes exactly as agreed.</span></>
+          <>Settlement stops. <span style={{ color: "var(--muted)" }}>Your bond does not move.</span></>
+        ) : live ? (
+          <>All clear. <span style={{ color: "var(--muted)" }}>The loan finishes as agreed.</span></>
         ) : (
-          " "
+          " "
         )}
       </p>
 
-      {/* the one that matters */}
-      <div style={{ marginTop: 40, borderTop: "1px solid var(--line)", paddingTop: 32 }}>
-        <p className="eyebrow" style={{ marginBottom: 16 }}>
-          Every scheduled call the market has ever made
-        </p>
-        <div style={{ display: "grid", gap: 6 }}>
+      {/* the one that proves it */}
+      <div style={{ marginTop: 26, borderTop: "1px solid var(--line)", paddingTop: 22 }}>
+        <p className="eyebrow" style={{ marginBottom: 12 }}>Hedera tried to close a loan four times</p>
+        <div style={{ display: "grid", gap: 5 }}>
           {[
             ["20:33:25", "ok"],
             ["20:54:13", "ok"],
             ["20:54:22", "ok"],
-            ["21:11:12", "blocked"],
+            ["21:11:12", "stopped"],
           ].map(([t, state]) => (
-            <p key={t} className="readout" style={{ margin: 0 }}>
-              <span className="k">{t}</span> <span className="v">claim</span>{" "}
+            <p key={t} className="readout" style={{ margin: 0, fontSize: 12.5 }}>
+              <span className="k">{t}</span>{" "}
               <span className={`state ${state === "ok" ? "settled" : "blocked"}`}>{state}</span>
-              {state === "blocked" && <span className="k"> — the lender was frozen</span>}
+              {state !== "ok" && <span className="k"> — the lender had been frozen</span>}
             </p>
           ))}
         </div>
-        <p style={{ fontSize: 15.5, color: "var(--ink-2)", margin: "22px 0 0", maxWidth: "62ch" }}>
+        <p style={{ fontSize: 14.5, color: "var(--ink-2)", margin: "16px 0 0", maxWidth: "58ch" }}>
           <strong style={{ color: "var(--ink)", fontWeight: 500 }}>
-            The issuer&rsquo;s control stopped Hedera itself, mid-settlement.
+            The issuer stopped Hedera itself.
           </strong>{" "}
-          The loan stayed open, the collateral stayed escrowed, and it completed the moment the freeze
-          lifted.{" "}
+          The loan stayed open and finished the moment the freeze lifted.{" "}
           <a href={link.scheduled} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
-            See every scheduled call ↗
+            See it ↗
           </a>
         </p>
       </div>

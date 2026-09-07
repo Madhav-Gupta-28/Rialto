@@ -28,4 +28,8 @@ export const link = {
   lensContract: `${SCAN}/contract/0xd65580d345aE3c13Ce58586C0891b67198f23246`,
   topic: `${SCAN}/topic/0.0.10367534`,
   scheduled: `${SCAN}/account/0.0.10382007`,
+  hip1215: "https://hips.hedera.com/hip/hip-1215",
+  hcsDocs: "https://docs.hedera.com/hedera/sdks-and-apis/sdks/consensus-service",
+  ats: "https://github.com/hashgraph/asset-tokenization-studio",
+  erc3643: "https://www.erc3643.org/",
 } as const;

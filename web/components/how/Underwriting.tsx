@@ -4,21 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { link } from "@/lib/links";
 
 /**
- * How a machine is allowed to spend somebody else's money, and how you know
- * afterwards that it was honest.
+ * Why you can trust a machine with somebody else's money.
  *
- * Two halves, and they are separate on purpose. Above: what it reads and what
- * it publishes, in order, with the publish happening before the bid so the
- * explanation cannot be written to fit the outcome. Below: the mandate, which
- * is on chain and enforced by the market whatever the agent decides.
+ * Two answers. It writes down its thinking to a public topic *before* it bids,
+ * so the record cannot be edited to suit the outcome — and it bids inside
+ * limits the market itself enforces, so it cannot overspend even if the key is
+ * stolen.
+ *
+ * The step that lands on black is the bid, because it comes last and that
+ * ordering is the entire claim.
  */
 
 const STEPS = [
-  { t: "reads the document", s: "off the security itself", href: link.agent },
-  { t: "checks the bytes", s: "against the hash the issuer signed", href: link.agent },
-  { t: "publishes its reasoning", s: "to a Hedera consensus topic", href: link.hcs },
-  { t: "then bids", s: "carrying that message's hash", href: link.bid },
+  { t: "reads the bond's paperwork", href: link.agent },
+  { t: "checks it is the real document", href: link.agent },
+  { t: "writes down its thinking", href: link.hcs },
+  { t: "then bids", href: link.bid },
 ];
+
+const LIMITS = ["biggest loan", "total lent", "lowest rate", "longest term", "which bonds"];
 
 export default function Underwriting() {
   const ref = useRef<HTMLDivElement>(null);
@@ -28,7 +32,7 @@ export default function Underwriting() {
     const el = ref.current;
     if (!el) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setN(5);
+      setN(6);
       return;
     }
     const io = new IntersectionObserver(
@@ -39,8 +43,8 @@ export default function Underwriting() {
         const id = setInterval(() => {
           i += 1;
           setN(i);
-          if (i >= 5) clearInterval(id);
-        }, 640);
+          if (i >= 6) clearInterval(id);
+        }, 520);
       },
       { rootMargin: "-70px" },
     );
@@ -58,72 +62,66 @@ export default function Underwriting() {
             target="_blank"
             rel="noreferrer"
             style={{
-              display: "flex", alignItems: "baseline", gap: 20, padding: "20px 24px",
+              display: "flex", alignItems: "center", gap: 16, padding: "14px 18px",
               background: i === 3 ? "var(--ink)" : "var(--paper)",
               color: i === 3 ? "var(--paper)" : "var(--ink)",
               textDecoration: "none",
               opacity: n > i ? 1 : 0,
-              transform: n > i ? "none" : "translateY(6px)",
-              transition: "opacity .5s ease, transform .5s ease",
+              transform: n > i ? "none" : "translateY(5px)",
+              transition: "opacity .45s ease, transform .45s ease",
             }}
           >
-            <span style={{ fontFamily: "var(--mono)", fontSize: 11, opacity: 0.55, minWidth: 20 }}>
-              {`0${i + 1}`}
-            </span>
-            <span style={{ fontSize: 17, minWidth: 210 }}>{s.t}</span>
-            <span
-              style={{
-                fontFamily: "var(--mono)", fontSize: 12,
-                color: i === 3 ? "rgba(244,242,237,.7)" : "var(--muted)",
-              }}
-            >
-              {s.s}
-            </span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, opacity: 0.5 }}>{`0${i + 1}`}</span>
+            <span style={{ fontSize: 15.5 }}>{s.t}</span>
+            {i === 2 && (
+              <span
+                style={{
+                  marginLeft: "auto", fontFamily: "var(--mono)", fontSize: 10,
+                  letterSpacing: ".08em", color: "var(--muted)",
+                }}
+              >
+                HEDERA CONSENSUS SERVICE
+              </span>
+            )}
           </a>
         ))}
       </div>
 
+      {/* the ordering, stated as two stamps */}
       <div
         style={{
-          marginTop: 28, textAlign: "center",
-          opacity: n > 4 ? 1 : 0, transition: "opacity .6s ease",
+          marginTop: 18, textAlign: "center",
+          opacity: n > 4 ? 1 : 0, transition: "opacity .5s ease",
         }}
       >
         <p className="readout" style={{ margin: 0 }}>
-          <span className="k">published</span> <span className="v">20:36:21</span>
-          {"   "}
-          <span className="k">awarded</span> <span className="v">20:37:22</span>
-        </p>
-        <p style={{ fontSize: 14, color: "var(--muted)", margin: "10px 0 0" }}>
-          61 seconds. Consensus timestamped the explanation before anyone knew who had won.
+          <span className="v">20:36:21</span> <span className="k">written</span>
+          {"     "}
+          <span className="v">20:37:22</span> <span className="k">funded</span>
         </p>
       </div>
 
       {/* the box it cannot bid outside */}
       <div
         style={{
-          marginTop: 34, border: "1px solid var(--ink)", padding: "22px 26px",
-          opacity: n > 4 ? 1 : 0, transition: "opacity .7s ease .2s",
+          marginTop: 22, border: "1px solid var(--ink)", padding: "16px 18px",
+          opacity: n > 5 ? 1 : 0, transition: "opacity .6s ease",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
-          <p className="eyebrow" style={{ margin: 0 }}>The mandate · on chain, enforced by the market</p>
-          <a href={link.mandate} target="_blank" rel="noreferrer"
-             style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-            Mandates.sol ↗
-          </a>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {["maxPerDeal", "maxTotal", "minRateBps", "maxTerm", "allowedAssets"].map((f) => (
-            <span key={f} className="state" style={{ borderColor: "var(--ink)", color: "var(--ink)" }}>
+        <p className="eyebrow" style={{ margin: "0 0 12px" }}>Limits the market enforces</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {LIMITS.map((f) => (
+            <span
+              key={f}
+              style={{
+                border: "1px solid var(--line)", padding: "5px 10px", borderRadius: 2,
+                fontSize: 12.5, color: "var(--ink)",
+              }}
+            >
               {f}
             </span>
           ))}
         </div>
-        <p style={{ fontSize: 14.5, color: "var(--ink-2)", margin: "18px 0 0", maxWidth: "62ch" }}>
-          A compromised agent key can do nothing its owner had not already authorised. The limits are
-          checked against whoever owns the capital, not whoever signed.
-        </p>
       </div>
     </div>
   );
