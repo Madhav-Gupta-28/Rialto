@@ -95,6 +95,9 @@ export default function TxDialog({
 
           {receipt && !reverted && (
             <>
+              <svg className="tick" viewBox="0 0 34 34" aria-hidden="true">
+                <path d="M7 18 L14 25 L27 10" />
+              </svg>
               <h3>Done.</h3>
               <p>{done ?? "The transaction settled on Hedera."}</p>
             </>
@@ -102,6 +105,10 @@ export default function TxDialog({
 
           {failed && (
             <>
+              <svg className="tick cross" viewBox="0 0 34 34" aria-hidden="true">
+                <path d="M10 10 L24 24" />
+                <path d="M24 10 L10 24" />
+              </svg>
               <h3>{why ? why.says : "The network refused this."}</h3>
               {why?.fix && <p>{why.fix}</p>}
               {!why && (

@@ -298,14 +298,22 @@ footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: va
                  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
 .meter .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 1px; margin-right: 6px; vertical-align: -1px; }
 
-/* What the borrower is actually proposing, stated back to them. */
-.proposal { border: 1px solid var(--line); border-left: 2px solid var(--ink); border-radius: 0 3px 3px 0;
-            background: var(--wash); padding: 18px 22px; margin: 22px 0 0; }
-.proposal .big { font-family: var(--mono); font-size: 26px; color: var(--ink); letter-spacing: -.02em;
-                 font-variant-numeric: tabular-nums; }
-.proposal p { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
-.proposal.short { border-left-color: var(--blocked); }
-.proposal.short .big { color: var(--blocked); }
+/* What the borrower is proposing, recalculated as they type.
+   A number that changes has to look like it changes, or it reads as a caption. */
+.proposal { display: flex; align-items: center; gap: 22px; border: 1px solid var(--ink);
+            border-radius: 3px; padding: 16px 20px; margin: 20px 0 0; }
+.proposal .big { font-family: var(--mono); font-size: 30px; color: var(--ink); letter-spacing: -.02em;
+                 font-variant-numeric: tabular-nums; line-height: 1; }
+.proposal p { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+.proposal.short { border-color: var(--ink); background: var(--ink); }
+.proposal.short .big, .proposal.short p { color: var(--paper); }
+
+/* A form section: a label above a hairline, then the fields. */
+.fieldset { margin-top: 30px; }
+.fieldset > .lab { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+                   font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+                   color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--ink); margin-bottom: 20px; }
+.actions { display: flex; justify-content: center; margin-top: 30px; }
 
 /* ── the transaction dialog ─────────────────────────────────────── */
 
@@ -342,8 +350,20 @@ footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: va
 .dialog .why .sel { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .06em; }
 .dialog > footer { padding: 16px 22px; border-top: 1px solid var(--line); display: flex;
                    justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.dialog.ok > header { border-bottom-color: var(--settled); }
-.dialog.bad > header { border-bottom-color: var(--blocked); }
+/* Two outcomes, told apart by weight rather than hue: a settled transaction
+   gets a hairline, a refused one gets the whole header inverted. */
+.dialog.ok > header { border-bottom-color: var(--ink); }
+.dialog.bad > header { background: var(--ink); border-bottom-color: var(--ink); }
+.dialog.bad > header .t { color: rgba(244,242,237,.6); }
+.dialog.bad > header .state { color: var(--ink); background: var(--paper); border-color: var(--paper); }
+
+/* The mark that lands when it settles. */
+.tick { width: 34px; height: 34px; margin-bottom: 16px; }
+.tick path { stroke: var(--ink); stroke-width: 2.4; fill: none; stroke-linecap: round;
+             stroke-dasharray: 26; stroke-dashoffset: 26; animation: draw .45s ease .1s forwards; }
+.tick.cross path { stroke-dasharray: 20; stroke-dashoffset: 20; }
+@keyframes draw { to { stroke-dashoffset: 0 } }
+@media (prefers-reduced-motion: reduce) { .tick path { animation: none; stroke-dashoffset: 0 } }
 
 /* Three dots, because a spinner implies a progress it does not know. */
 .waiting { display: inline-flex; gap: 4px; align-items: center; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { amount, days as parseDays, seconds as parseSeconds } from "@/lib/amount";
@@ -61,92 +61,89 @@ export default function Borrow() {
 
   return (
     <>
-      <section className="band void" style={{ paddingTop: 104, paddingBottom: 56 }}>
+      <section className="band" style={{ paddingTop: 100, paddingBottom: 44, borderBottom: "none" }}>
         <div className="wrap narrow">
-          <p className="eyebrow">Borrower</p>
-          <h1 className="claim" style={{ fontSize: "clamp(30px,4.4vw,50px)" }}>
-            Name the terms.
-            <br />
-            <span className="dim">Let underwriters answer.</span>
-          </h1>
-          <p className="lede" style={{ maxWidth: "54ch" }}>
-            You fix the principal, the term, and how much collateral you are pledging. You never name a
-            price, and neither does the contract — the auction does that, once.
+          <h1 className="claim" style={{ fontSize: "clamp(34px,5vw,56px)" }}>Borrow.</h1>
+          <p className="lede" style={{ maxWidth: "44ch", marginTop: 14 }}>
+            Lock your bond, say how much you want and for how long. Lenders bid, and the cheapest one
+            wins.
           </p>
         </div>
       </section>
 
     <section style={{ paddingTop: 40 }}>
       <div className="wrap narrow">
-        <div className="panel" style={{ marginBottom: 22 }}>
+        <div className="panel" style={{ marginBottom: 6 }}>
           <div className="head">
-            <p className="eyebrow" style={{ margin: 0 }}>The instrument</p>
+            <p className="eyebrow" style={{ margin: 0 }}>Your bond</p>
             <a className="sub" href={hashscan(BOND)} target="_blank" rel="noreferrer"
-               style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-              RDN27 · ATS security ↗
+               style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>
+              RDN27 ↗
             </a>
           </div>
-          <div className="body">
-            <div className="reads">
-              <div>
-                <span className="k">Your balance</span>
-                <span className="v">
-                  {balance !== undefined ? `${units(balance, BOND_DECIMALS, 0)} RDN27` : "—"}
-                </span>
-              </div>
-              <div>
-                <span className="k">Control list</span>
-                <span className="v">
-                  {listed === undefined ? "—" : listed
-                    ? <span className="state settled">admitted</span>
-                    : <span className="state blocked">not listed</span>}
-                </span>
-              </div>
-              <div>
-                <span className="k">Escrow approval</span>
-                <span className="v">
-                  {!isConnected ? "—" : needsApproval
-                    ? <span className="state pending">required</span>
-                    : <span className="state settled">granted</span>}
-                </span>
-              </div>
-            </div>
-            {listed === false && (
-              <p className="note" style={{ marginTop: 16 }}>
-                This security is permissioned. Until the issuer admits you, you cannot hold or pledge it —
-                the ERC-3643 constraint that makes ordinary AMMs incompatible with regulated assets.
-              </p>
+          <div className="body" style={{ padding: "14px 20px", display: "flex", gap: 26, flexWrap: "wrap",
+                                         alignItems: "center", fontFamily: "var(--mono)", fontSize: 13 }}>
+            <span>
+              <span style={{ color: "var(--muted)" }}>you hold </span>
+              {balance !== undefined ? `${units(balance, BOND_DECIMALS, 0)}` : "—"}
+            </span>
+            <span>
+              {listed === undefined ? null : listed
+                ? <span className="state settled">admitted</span>
+                : <span className="state blocked">not listed</span>}
+            </span>
+            {isConnected && (
+              <span>
+                {needsApproval
+                  ? <span className="state pending">approval needed</span>
+                  : <span className="state settled">escrow approved</span>}
+              </span>
             )}
           </div>
         </div>
 
         <div className="card">
-          <p className="eyebrow">Your request</p>
+          <div className="fieldset" style={{ marginTop: 4 }}>
+            <p className="lab">
+              <span>What you are pledging</span>
+              <span>{proposal ? `${proposal.ratio.toFixed(2)}× cover` : ""}</span>
+            </p>
+            <div className="grid two">
+              <Field name="Bond to lock (RDN27)" value={collateral} onChange={setCollateral} problem={c.ok ? undefined : c.why} />
+              <Field name="Cash you want (dUSD)" value={principal} onChange={setPrincipal} problem={pr.ok ? undefined : pr.why} />
+            </div>
+          </div>
 
-          <div className="grid two">
-            <Field name="Collateral to pledge (RDN27)" value={collateral} onChange={setCollateral} problem={c.ok ? undefined : c.why} />
-            <Field name="Principal sought (dUSD)" value={principal} onChange={setPrincipal} problem={pr.ok ? undefined : pr.why} />
-            <Field name="Term (days)" value={days} onChange={setDays} hint="60 days maximum" problem={t.ok ? undefined : t.why} />
-            <Field name="Auction length (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
+          <div className="fieldset">
+            <p className="lab">
+              <span>How long</span>
+            </p>
+            <div className="grid two">
+              <Field name="Loan length (days)" value={days} onChange={setDays} hint="60 maximum" problem={t.ok ? undefined : t.why} />
+              <Field name="Bidding open for (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
+            </div>
           </div>
 
           {proposal && (
             <div className={`proposal${enough ? "" : " short"}`}>
-              <span className="big">{proposal.ratio.toFixed(2)}×</span>
+              <Ratio value={proposal.ratio} />
               <p>
-                {proposal.pledged} RDN27 pledged against{" "}
-                {proposal.sought} dUSD. <strong>That ratio is the whole of the
-                lender&rsquo;s protection</strong> — there is no margin call to top it up later, and no
-                oracle to argue with. Pledge more and you will be bid a lower repayment.
+                {enough ? (
+                  <>
+                    You lock <strong>{proposal.pledged} RDN27</strong> to borrow{" "}
+                    <strong>{proposal.sought} dUSD</strong>. Lock more and lenders bid you a better rate.
+                  </>
+                ) : (
+                  <>
+                    You only hold {units(balance ?? 0n, BOND_DECIMALS, 0)} RDN27 — not enough to lock{" "}
+                    {proposal.pledged}.
+                  </>
+                )}
               </p>
             </div>
           )}
 
-          <p className="note" style={{ margin: "18px 0" }}>
-            The document hash is read off the security itself, not taken on your word. That is what binds a
-            bid to the bytes the issuer published.
-          </p>
-
+          <div className="actions">
           {!isConnected ? (
             <p className="sub">Connect a wallet to open a request.</p>
           ) : needsApproval ? (
@@ -158,7 +155,7 @@ export default function Borrow() {
                 write({ address: BOND, abi: securityAbi, functionName: "approve", args: [MARKET, maxUint256] });
               }}
             >
-              {isPending ? "Approving…" : "Approve the escrow to hold RDN27"}
+              {isPending ? "Approving…" : "Let Rialto hold your bond"}
             </button>
           ) : (
             <button
@@ -175,21 +172,52 @@ export default function Borrow() {
                 });
               }}
             >
-              {isPending ? "Opening…" : "Open the request"}
+              {isPending ? "Opening…" : "Ask for bids"}
             </button>
           )}
+          </div>
 
-          {isConnected && c.ok && !enough && (
-            <p className="hint">
-              You hold {units(balance ?? 0n, BOND_DECIMALS, 0)} RDN27 — not enough for that pledge.
-            </p>
-          )}
+          <p className="sub" style={{ textAlign: "center", fontSize: 12.5, marginTop: 16 }}>
+            Lenders check the bond&rsquo;s paperwork against the issuer&rsquo;s own record before bidding.
+          </p>
+
           <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
         </div>
       </div>
     </section>
     </>
   );
+}
+
+/**
+ * The cover ratio, ticking to its new value as the fields change.
+ *
+ * It was already recalculating — it just did not look like it was, so it read
+ * as a caption rather than as the one number the borrower controls.
+ */
+function Ratio({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(value);
+      return;
+    }
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / 260, 1);
+      setShown(a + (value - a) * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else from.current = value;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <span className="big">{shown.toFixed(2)}×</span>;
 }
 
 function Field({
