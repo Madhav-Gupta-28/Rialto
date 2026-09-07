@@ -64,9 +64,9 @@ export default function StateMachine() {
 
   const node = (id: string, x: number, y: number, label: string, sub: string, tone: string) => {
     const active = on(id);
-    const colour = !active ? "var(--muted)" : tone;
+    const colour = !active ? "var(--ink-2)" : tone;
     return (
-      <g style={{ transition: "opacity .35s ease" }} opacity={active || step < 0 ? 1 : 0.32}>
+      <g style={{ transition: "opacity .35s ease" }} opacity={active || step < 0 ? 1 : 0.62}>
         <rect
           x={x - 74} y={y - 27} width={148} height={54} rx={3}
           fill={active ? "rgba(255,255,255,.03)" : "none"}
@@ -88,7 +88,7 @@ export default function StateMachine() {
   const edge = (id: string, d: string, label: string, lx: number, ly: number) => {
     const active = on(id);
     return (
-      <g opacity={active || step < 0 ? 1 : 0.25} style={{ transition: "opacity .35s ease" }}>
+      <g opacity={active || step < 0 ? 1 : 0.5} style={{ transition: "opacity .35s ease" }}>
         <path d={d} fill="none" stroke={active ? "var(--ink)" : "var(--line)"} strokeWidth={active ? 1.6 : 1}
               markerEnd={`url(#${active ? "tip-on" : "tip-off"})`} style={{ transition: "stroke .35s ease" }} />
         <text x={lx} y={ly} textAnchor="middle" fontFamily="var(--mono)" fontSize="10" letterSpacing=".6"
@@ -112,8 +112,8 @@ export default function StateMachine() {
       </defs>
 
       {edge("award", "M 190 150 L 288 150", "award", 239, 138)}
-      {edge("repay", "M 446 138 C 500 138, 520 84, 566 84", "repay · before the date", 506, 104)}
-      {edge("claim", "M 446 162 C 500 162, 520 216, 566 216", "claim · after it", 506, 210)}
+      {edge("repay", "M 446 136 C 502 136, 516 82, 566 82", "repay · before the date", 508, 62)}
+      {edge("claim", "M 446 164 C 502 164, 516 218, 566 218", "claim · after it", 508, 250)}
 
       {node("open", 116, 150, "OPEN", "collateral escrowed", "var(--ink)")}
       {node("funded", 372, 150, "FUNDED", "cash lender → borrower", "var(--ink)")}

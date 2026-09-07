@@ -214,7 +214,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: va
   text-wrap: balance;
 }
 .band.paper .claim { color: var(--paper-ink); }
-.claim .dim { color: var(--muted); }
+.claim .dim { color: #8f8b83; }
 .band.paper .claim .dim { color: var(--paper-muted); }
 
 .stat-strip { display: flex; flex-wrap: wrap; gap: 0; margin-top: 44px; border-top: 1px solid var(--line); }
@@ -237,7 +237,7 @@ footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: va
 .state.blocked { color: var(--blocked); border-color: var(--blocked); background: var(--blocked-bg); }
 .state.pending { color: var(--pending); border-color: var(--pending); background: var(--pending-bg); }
 
-.figure { border: 1px solid var(--line); border-radius: 3px; background: var(--surface); padding: 30px; margin: 34px 0 0; }
+.figure { border: 1px solid var(--line); border-radius: 3px; background: var(--surface); padding: 26px 26px 20px; margin: 34px 0 0; }
 .band.void .figure { background: #0d0d10; }
 .band.paper .figure { background: #fff; border-color: var(--paper-line); }
 .figure figcaption { font-size: 14px; color: var(--muted); margin-top: 20px; text-align: center; }
