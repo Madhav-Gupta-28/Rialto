@@ -1,4 +1,4 @@
-import { clip, evidenceBlock, MAX_EVIDENCE_CHARS, type Reasoner } from "./reason.js";
+import { apiErrorMessage, clip, evidenceBlock, MAX_EVIDENCE_CHARS, type Reasoner } from "./reason.js";
 
 /**
  * The reasoner that actually reads.
@@ -94,7 +94,7 @@ export class ClaudeReasoner implements Reasoner {
       // The body carries the actual reason — a bad key, a rate limit, an
       // unknown model. Losing it would leave "400" as the whole explanation.
       const detail = await res.text().catch(() => "");
-      throw new Error(`the model returned ${res.status}${detail ? `: ${clip(detail, 300).text}` : ""}`);
+      throw new Error(`the model returned ${res.status}${detail ? `: ${clip(apiErrorMessage(detail), 240).text}` : ""}`);
     }
 
     const body = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };

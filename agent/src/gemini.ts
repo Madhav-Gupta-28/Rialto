@@ -1,4 +1,4 @@
-import { clip, evidenceBlock, MAX_EVIDENCE_CHARS, type Reasoner } from "./reason.js";
+import { apiErrorMessage, clip, evidenceBlock, MAX_EVIDENCE_CHARS, type Reasoner } from "./reason.js";
 
 /**
  * The same job as `ClaudeReasoner`, against Google's Generative Language API.
@@ -96,7 +96,7 @@ export class GeminiReasoner implements Reasoner {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`the model returned ${res.status}${detail ? `: ${clip(detail, 300).text}` : ""}`);
+      throw new Error(`the model returned ${res.status}${detail ? `: ${clip(apiErrorMessage(detail), 240).text}` : ""}`);
     }
 
     const body = (await res.json()) as {

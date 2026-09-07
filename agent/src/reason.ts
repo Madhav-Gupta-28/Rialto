@@ -24,6 +24,35 @@ export interface Reasoner {
  */
 export const MAX_EVIDENCE_CHARS = 120_000;
 
+/**
+ * An API error body is pretty-printed JSON — a dozen lines of it. Embedded in a
+ * message and logged once per poll, that buries everything the agent did, which
+ * is the same failure the viem errors had in the poll loop.
+ */
+export function oneLine(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The sentence out of an API error body, not the envelope around it.
+ *
+ * Both providers answer a refusal with `{ "error": { "message": "..." } }`
+ * pretty-printed over a dozen lines. Collapsing that to one line still leaves
+ * two hundred characters of type URLs and domains around six useful words, so
+ * the message is lifted out when it is there and the whole body kept when it
+ * is not — an unfamiliar shape should not become an empty explanation.
+ */
+export function apiErrorMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: unknown } };
+    const m = parsed.error?.message;
+    if (typeof m === "string" && m.trim()) return oneLine(m);
+  } catch {
+    // Not JSON, or not that shape. Fall through to the raw body.
+  }
+  return oneLine(body);
+}
+
 export function clip(s: string, max: number): { text: string; truncated: boolean } {
   return s.length <= max ? { text: s, truncated: false } : { text: s.slice(0, max), truncated: true };
 }

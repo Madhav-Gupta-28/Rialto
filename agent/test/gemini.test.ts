@@ -127,3 +127,33 @@ describe("GeminiReasoner", () => {
     vi.useRealTimers();
   });
 });
+
+describe("error reporting", () => {
+  /**
+   * An API error body is pretty-printed JSON. Left alone it reaches the log as
+   * a dozen lines and buries the document verification and the bid above it —
+   * the same failure the viem errors had in the poll loop.
+   */
+  it("reports the message out of an error body, not the envelope", async () => {
+    const pretty = '{\n  "error": {\n    "code": 400,\n    "message": "API key not valid.",\n    "details": [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","domain":"googleapis.com"}]\n  }\n}';
+    const impl = (async () => ({ ok: false, status: 400, text: async () => pretty })) as unknown as typeof fetch;
+    try {
+      await new GeminiReasoner({ apiKey: "k", fetchImpl: impl }).think("s", "i", "e");
+      throw new Error("should have thrown");
+    } catch (e) {
+      const msg = (e as Error).message;
+      expect(msg).not.toContain("\n");
+      expect(msg).toContain("400");
+      expect(msg).toContain("API key not valid.");
+      // The envelope is noise around six useful words.
+      expect(msg).not.toContain("googleapis.com");
+      expect(msg).not.toContain("@type");
+    }
+  });
+  it("keeps an unfamiliar body whole rather than reporting nothing", async () => {
+    const impl = (async () => ({ ok: false, status: 503, text: async () => "upstream unavailable" })) as unknown as typeof fetch;
+    await expect(new GeminiReasoner({ apiKey: "k", fetchImpl: impl }).think("s", "i", "e")).rejects.toThrow(
+      /503: upstream unavailable/,
+    );
+  });
+});
