@@ -2,12 +2,15 @@
 
 ## Hedera Testnet (chain 296)
 
-| Contract | Address | Size | Deploy cost |
+| Contract | Address | Hedera id | Size |
 |---|---|---|---|
-| `Mandates` | [`0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e`](https://hashscan.io/testnet/contract/0x3C1c0Bc7543874Ba214a6edcBB6798fC9d1caF8e) | 1,730 B | 427,410 gas / 0.4702 HBAR |
-| `RialtoMarket` | [`0x246ECBb8A66e2390214b97CeC43143d86701c4C3`](https://hashscan.io/testnet/contract/0x246ECBb8A66e2390214b97CeC43143d86701c4C3) | 9,735 B | 2.4007 HBAR |
+| `Mandates` | [`0xb4F8cB274387A5190CeF7582004558809f8547a4`](https://hashscan.io/testnet/contract/0xb4F8cB274387A5190CeF7582004558809f8547a4) | `0.0.10373522` | 1,766 B |
+| `RialtoMarket` | [`0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4`](https://hashscan.io/testnet/contract/0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4) | `0.0.10382007` | 14,552 B |
 
-Deployed 2026-09-05. Operator `0.0.8127508`.
+Deployed 2026-09-05. Operator `0.0.8127508`. These are the live contracts —
+everything below runs against them. Two earlier deployments were superseded
+during the build; both are listed with their reasons under
+[The market](#the-market).
 
 ### Verify it yourself
 
@@ -15,12 +18,12 @@ Nothing here has to be taken on trust. Every line below reads live state.
 
 ```bash
 RPC=https://testnet.hashio.io/api
-MARKET=0x246ECBb8A66e2390214b97CeC43143d86701c4C3
+MARKET=0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4
 
 call () { curl -s -X POST $RPC -H 'content-type: application/json' \
   -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_call\",\"params\":[{\"to\":\"$MARKET\",\"data\":\"$1\"},\"latest\"]}"; }
 
-call $(cast sig 'mandates()')       # -> 0x…3c1c0bc7543874ba214a6edcbb6798fc9d1caf8e
+call $(cast sig 'mandates()')       # -> 0x…b4f8cb274387a5190cef7582004558809f8547a4
 call $(cast sig 'MAX_TERM()')       # -> 5184000  (60 days)
 call $(cast sig 'AWARD_WINDOW()')   # -> 604800   (7 days)
 
