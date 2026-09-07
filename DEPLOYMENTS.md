@@ -459,11 +459,38 @@ fact is the number the network produced after it, to the unit.
 
 ## Compliance, shown not described
 
-Four controls, each exercised against a live position on the current market and
-the real RDN27 bond. The claim being tested is the same one every time: an
-issuer's control **delays** a settlement and never destroys one — the position
-holds its state, the collateral stays where it is, and the deal completes the
-moment the control is lifted.
+Six controls, each exercised against a live position and the real RDN27 bond.
+The claim being tested is the same one every time: an issuer's control
+**delays** a settlement and never destroys one — the position holds its state,
+the collateral stays where it is, and the deal completes the moment the control
+is lifted.
+
+> **Which contract these ran on.** The request ids below — `#4` and `#6` through
+> `#10` — are on [`0x59d8b1e3…`](https://hashscan.io/testnet/contract/0x59d8b1e3d3e8691de6e6a5012fa90c09ba987686),
+> a market later superseded when a coupon larger than the whole repayment was
+> found to be kept by the lender. **They will not resolve against the current
+> market**, which carries requests `#0`–`#6` of its own.
+>
+> The findings still hold, and the reason is checkable rather than a plea.
+> Every control exercised here belongs to the **security**, not to the market:
+> pause, freeze, control list and KYC are ATS facets on RDN27, the same token
+> the current market escrows. And the lens that reported them is the same code
+> now deployed — the two runtimes differ by exactly 60 bytes, which are the
+> three copies of the immutable market address:
+>
+> ```bash
+> cast code 0xd65580d345aE3c13Ce58586C0891b67198f23246   # current
+> cast code 0xe4f8b3d806914fc9e782e280e8de6a0f0f9b6470   # used in the runs below
+> # 2,565 bytes each; identical once the embedded market address is removed
+> ```
+>
+> The coupon-netting bug that forced the market redeploy is in `repay`, and
+> `ComplianceLens` takes no part in settlement at all.
+>
+> That said, an argument is not a transaction. Re-running these against the
+> current market is listed as outstanding work, and until it is done this
+> section should be read as evidence about the *mechanism*, not as a receipt on
+> the deployment a judge will be looking at.
 
 `ComplianceLens` is read separately at each step. It is a view contract, it
 takes no part in settlement, and it exists so a blocked party is told which
