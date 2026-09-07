@@ -11,6 +11,7 @@ import { manufacturedExposure } from "./coupons.js";
 import { decide, rateBps, type RequestView } from "./strategy.js";
 import { formOpinion, RuleBasedReasoner } from "./reason.js";
 import { ClaudeReasoner } from "./claude.js";
+import { GeminiReasoner } from "./gemini.js";
 import { HcsPublisher, LocalPublisher, type Publisher, type ReasoningRecord } from "./hcs.js";
 
 const log = (...a: unknown[]) => console.log(...a);
@@ -125,7 +126,13 @@ export async function considerRequest(
         model: config.model,
         timeoutMs: config.reasonerTimeoutMs,
       })
-    : new RuleBasedReasoner(mandate, view);
+    : config.googleApiKey
+      ? new GeminiReasoner({
+          apiKey: config.googleApiKey,
+          model: config.googleModel,
+          timeoutMs: config.reasonerTimeoutMs,
+        })
+      : new RuleBasedReasoner(mandate, view);
   const { opinion, why } = await formOpinion(reasoner, view, outcome.text, config.strategy);
   if (!opinion) return retry(`#${id} declined — ${why}`);
 
@@ -212,11 +219,7 @@ async function main(): Promise<void> {
   log(`  agent key   ${c.account.address}`);
   log(`  bidding for ${underwriter}${underwriter === c.account.address ? " (itself)" : ""}`);
   log(`  market      ${config.market}`);
-  log(
-    config.anthropicApiKey
-      ? `  reasoner    ${config.model} — reads the prospectus`
-      : `  reasoner    rule-based fallback — no ANTHROPIC_API_KEY, so the document is pattern-matched, not read`,
-  );
+  log(`  reasoner    ${describeReasoner()}`);
   log(`  strategy    ${config.strategy}`);
   log("");
 
@@ -271,6 +274,13 @@ function brief(e: unknown): string {
   }
   const text = e instanceof Error ? e.message : String(e);
   return (text.split("\n")[0] ?? text).trim();
+}
+
+/** Said out loud on startup, so nobody has to guess what produced a bid. */
+function describeReasoner(): string {
+  if (config.anthropicApiKey) return `${config.model} — reads the prospectus`;
+  if (config.googleApiKey) return `${config.googleModel} — reads the prospectus`;
+  return "rule-based fallback — no model key set, so the document is pattern-matched, not read";
 }
 
 function label(b: Hex): string {

@@ -1425,11 +1425,16 @@ HCS consensus timestamp is what makes the reasoning non-retrofittable.
 two implementations. Which one runs depends on whether `ANTHROPIC_API_KEY` is
 set, and the agent prints which on startup rather than leaving anyone to guess.
 
-| | `ClaudeReasoner` | `RuleBasedReasoner` |
-|---|---|---|
-| Needs | an API key | nothing |
-| Reads the document | yes | no — matches patterns in it |
-| Used when | a key is present | there is no key |
+| | `ClaudeReasoner` | `GeminiReasoner` | `RuleBasedReasoner` |
+|---|---|---|---|
+| Needs | `ANTHROPIC_API_KEY` | `GOOGLE_API_KEY` | nothing |
+| Reads the document | yes | yes | no — matches patterns in it |
+| Used when | that key is set | that key is set, and Anthropic's is not | neither is set |
+
+The two model-backed readers differ only in transport. Both put the brief and
+the document in **separate message parts**, both cut an oversized prospectus and
+tell the model they cut it, and both are bounded by a timeout so a slow model
+misses an auction instead of stalling the agent on every other request.
 
 The rule-based one exists so the pipeline can be demonstrated and tested end to
 end with no key and no network, and it is deliberately honest about its limits:

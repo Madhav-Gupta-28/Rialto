@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClaudeReasoner, MAX_EVIDENCE_CHARS } from "../src/claude.js";
+import { ClaudeReasoner } from "../src/claude.js";
+import { MAX_EVIDENCE_CHARS } from "../src/reason.js";
 
 /** A fetch that records what it was handed and answers with a fixed reply. */
 function stub(reply: unknown, status = 200) {

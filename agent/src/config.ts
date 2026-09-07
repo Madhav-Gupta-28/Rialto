@@ -92,6 +92,8 @@ export const config = {
    */
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
+  googleApiKey: process.env.GOOGLE_API_KEY ?? "",
+  googleModel: process.env.GOOGLE_MODEL ?? "gemini-2.5-flash",
   /** Bounded by the auction, not by patience. A slow underwriter misses the window. */
   reasonerTimeoutMs: Number(process.env.REASONER_TIMEOUT_MS ?? 30_000),
 } as const;

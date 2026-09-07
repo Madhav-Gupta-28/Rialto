@@ -1,4 +1,4 @@
-import type { Reasoner } from "./reason.js";
+import { clip, evidenceBlock, MAX_EVIDENCE_CHARS, type Reasoner } from "./reason.js";
 
 /**
  * The reasoner that actually reads.
@@ -18,15 +18,6 @@ import type { Reasoner } from "./reason.js";
 
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
-
-/**
- * A prospectus can be fetched up to 8 MB (`MAX_DOCUMENT_BYTES`), which is far
- * more than any context window and far more than anyone should pay to read. A
- * prefix is sent instead, and the model is told plainly that it is a prefix, so
- * a truncated document reads as incomplete evidence rather than as a complete
- * document that happens to say nothing about maturity.
- */
-export const MAX_EVIDENCE_CHARS = 120_000;
 
 export interface ClaudeOptions {
   apiKey: string;
@@ -62,19 +53,12 @@ export class ClaudeReasoner implements Reasoner {
   }
 
   async think(system: string, instruction: string, evidence: string): Promise<string> {
-    const { text: doc, truncated } = clip(evidence, this.maxEvidenceChars);
-
     // The instruction and the document are separate content blocks, never one
     // concatenated string. That is the same separation `buildPrompt` makes, and
     // undoing it here would quietly discard the defence it exists for.
     const content = [
       { type: "text" as const, text: instruction },
-      {
-        type: "text" as const,
-        text: truncated
-          ? `${doc}\n\n[The document was longer than this agent will read and has been cut off here. Treat it as incomplete: anything you cannot find may simply be further down.]`
-          : doc,
-      },
+      { type: "text" as const, text: evidenceBlock(evidence, this.maxEvidenceChars) },
     ];
 
     const controller = new AbortController();
@@ -127,6 +111,3 @@ export class ClaudeReasoner implements Reasoner {
   }
 }
 
-function clip(s: string, max: number): { text: string; truncated: boolean } {
-  return s.length <= max ? { text: s, truncated: false } : { text: s.slice(0, max), truncated: true };
-}

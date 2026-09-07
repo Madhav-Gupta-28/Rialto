@@ -13,6 +13,28 @@ export interface Reasoner {
   think(system: string, instruction: string, evidence: string): Promise<string>;
 }
 
+/**
+ * A prospectus can be fetched up to 8 MB (`MAX_DOCUMENT_BYTES`), which is far
+ * more than any context window and far more than anyone should pay to read. A
+ * prefix goes to the model instead — and the model is told plainly that it is a
+ * prefix, because a document cut off silently reads as a complete document that
+ * happens to say nothing about maturity.
+ *
+ * Shared by every model-backed reasoner, so the rule cannot drift between them.
+ */
+export const MAX_EVIDENCE_CHARS = 120_000;
+
+export function clip(s: string, max: number): { text: string; truncated: boolean } {
+  return s.length <= max ? { text: s, truncated: false } : { text: s.slice(0, max), truncated: true };
+}
+
+/** The document as the model should see it, with a truncation notice if one is owed. */
+export function evidenceBlock(evidence: string, max: number): string {
+  const { text, truncated } = clip(evidence, max);
+  if (!truncated) return text;
+  return `${text}\n\n[The document was longer than this agent will read and has been cut off here. Treat it as incomplete: anything you cannot find may simply be further down.]`;
+}
+
 export interface OpinionResult {
   opinion: Opinion | null;
   why: string;
