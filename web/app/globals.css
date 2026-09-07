@@ -161,6 +161,8 @@ table.rows th {
   text-align: left; font-weight: 400; font-size: 11px; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--muted); padding: 0 12px 10px 0; border-bottom: 1px solid var(--line);
 }
+table.rows td.fig { text-align: right; font-variant-numeric: tabular-nums; }
+table.rows th.fig { text-align: right; }
 table.rows td { padding: 13px 12px 13px 0; border-bottom: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 table.rows tr:hover td { background: var(--surface); }
 table.rows td.wide { font-family: var(--sans); }
@@ -445,3 +447,33 @@ footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: va
              text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 .checks .v { font-size: 13.5px; color: var(--ink); }
 .checks .v::after { content: " ↗"; color: var(--muted); font-size: 10px; }
+
+/* ── the market table ────────────────────────────────────────────── */
+
+/* A row is a link to the loan, so it behaves like one. */
+tr.row { cursor: pointer; transition: background .14s ease; }
+tr.row:hover { background: var(--wash); }
+tr.row td:first-child { position: relative; }
+tr.row:hover td:first-child::before {
+  content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 2px; background: var(--ink);
+}
+tr.row .go { opacity: 0; transition: opacity .14s ease; color: var(--muted); font-size: 11px; margin-left: 8px; }
+tr.row:hover .go { opacity: 1; }
+
+.copy { display: inline-flex; align-items: baseline; gap: 8px; background: none; border: none;
+        padding: 2px 0; margin: 0; cursor: pointer; font: inherit; color: var(--muted); }
+.copy .mono { font-family: var(--mono); font-size: 12.5px; }
+.copy .mark { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+              opacity: 0; transition: opacity .14s ease; }
+.copy:hover { color: var(--ink); }
+.copy:hover .mark, .copy:focus-visible .mark { opacity: .6; }
+
+/* A strip of figures read off the contract, above the table. */
+.tally { display: flex; flex-wrap: wrap; gap: 0; margin: 34px 0 0; border-top: 1px solid var(--line);
+         border-bottom: 1px solid var(--line); }
+.tally > div { padding: 16px 34px 14px 0; margin-right: 34px; border-right: 1px solid var(--line); }
+.tally > div:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+.tally b { display: block; font-family: var(--mono); font-size: 23px; font-weight: 400; color: var(--ink);
+           letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tally span { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+              color: var(--muted); }
