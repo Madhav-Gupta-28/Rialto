@@ -9,6 +9,7 @@ import Rise from "@/components/figures/Rise";
 import PriceGap from "@/components/figures/PriceGap";
 import StateMachine from "@/components/figures/StateMachine";
 import Ordering from "@/components/figures/Ordering";
+import Reasoning from "@/components/figures/Reasoning";
 import CouponFall from "@/components/figures/CouponFall";
 import Exchange from "@/components/figures/Exchange";
 import Counter from "@/components/figures/Counter";
@@ -131,6 +132,10 @@ export default function Market() {
                 Consensus timestamped the explanation. It cannot have been written to fit what happened next.
               </figcaption>
             </figure>
+
+            <div className="figure">
+              <Reasoning />
+            </div>
           </Rise>
         </div>
       </section>

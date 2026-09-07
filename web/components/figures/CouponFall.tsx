@@ -66,8 +66,34 @@ export default function CouponFall() {
     return () => io.disconnect();
   }, []);
 
+  // Where the coupon went, before the figure moves. The security pays whoever
+  // holds it on the record date, and while the loan is live that is the escrow
+  // — which is the fact the whole manufactured payment exists to correct.
+  const flow = (
+    <svg viewBox="0 0 660 92" width="100%" style={{ maxWidth: 560, margin: "0 auto 30px", display: "block" }}
+         role="img" aria-label="The security pays the escrow, because the escrow is the holder of record.">
+      <line x1={104} y1={46} x2={556} y2={46} stroke="var(--paper-line)" strokeWidth={1} />
+      <g style={{ transform: `translateX(${done ? 330 : 104}px)`, transition: "transform 1.6s cubic-bezier(.4,0,.2,1) .3s" }}>
+        <circle cx={0} cy={46} r={13} fill="var(--paper)" stroke="var(--settled)" strokeWidth={1.5} />
+        <text x={0} y={50} textAnchor="middle" fontFamily="var(--mono)" fontSize="8.5" fill="var(--settled)">28.77</text>
+      </g>
+      {[[104, "THE BOND", "pays its coupon"], [330, "THE ESCROW", "holder of record"], [556, "THE BORROWER", "still owns it"]].map(
+        ([x, a, b]) => (
+          <g key={a as string}>
+            <line x1={x as number} y1={20} x2={x as number} y2={72} stroke="var(--paper-line)" strokeWidth={1} />
+            <text x={x as number} y={86} textAnchor="middle" fontFamily="var(--mono)" fontSize="9"
+                  letterSpacing="1.2" fill="var(--paper-muted)">{a as string}</text>
+            <text x={x as number} y={14} textAnchor="middle" fontFamily="var(--mono)" fontSize="8.5"
+                  fill="var(--paper-muted)">{b as string}</text>
+          </g>
+        ),
+      )}
+    </svg>
+  );
+
   return (
     <div ref={ref} style={{ textAlign: "center" }}>
+      {flow}
       <p className="eyebrow" style={{ marginBottom: 18 }}>Repayment due · request #12</p>
       <div
         style={{
