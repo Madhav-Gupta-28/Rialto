@@ -1,11 +1,12 @@
 /* Rialto was the banking quarter of Venice: brass, stone, ledger paper. The
    palette comes from that rather than from the usual dapp neon. */
 :root {
+  --void: #08080a;
   --ground: #0b0b0c;
   --surface: #141417;
   --raised: #1b1b1f;
   --line: #26262c;
-  --ink: #f0ede8;
+  --ink: #f4f2ed;
   --ink-2: #b9b5ae;
   --muted: #85817a;
   --brass: #c8a25c;
@@ -13,6 +14,22 @@
   --good: #7fa87f;
   --warn: #d0a355;
   --bad: #c2705f;
+
+  /* Colour is a readout, not a mood. Nothing on the landing page is coloured
+     unless it is reporting the state of something on chain. */
+  --settled: #6fa88a;
+  --settled-bg: #111a16;
+  --blocked: #c0705e;
+  --blocked-bg: #1c1210;
+  --pending: #c9a227;
+  --pending-bg: #191509;
+
+  /* The paper bands. A prospectus is a document; the chain is a ledger. The
+     page alternates between the two, and that contrast is the project. */
+  --paper: #f1efea;
+  --paper-ink: #111110;
+  --paper-line: #d9d5cc;
+  --paper-muted: #6b6760;
   --radius: 4px;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -173,3 +190,62 @@ footer.foot { border-top: 1px solid var(--line); padding: 24px 0 40px; color: va
   border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; color: var(--ink);
 }
 .ledger-row.total .figure { font-size: 15px; }
+
+/* ─────────────────────────────────────────────────────────────
+   The landing page. Everything below is used only by `/`, so the
+   app pages keep the classes they already have.
+   ───────────────────────────────────────────────────────────── */
+
+.band { padding: 104px 0; border-bottom: 1px solid var(--line); }
+.band.void { background: var(--void); }
+.band.paper { background: var(--paper); color: var(--paper-ink); border-color: var(--paper-line); }
+.band.paper .eyebrow, .band.paper .sub { color: var(--paper-muted); }
+.band.paper h2.h, .band.paper .display, .band.paper strong { color: var(--paper-ink); }
+.band.paper .lede { color: #35332e; }
+.band.tight { padding: 72px 0; }
+
+.claim {
+  font-family: var(--serif);
+  font-size: clamp(34px, 5.4vw, 62px);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.band.paper .claim { color: var(--paper-ink); }
+.claim .dim { color: var(--muted); }
+.band.paper .claim .dim { color: var(--paper-muted); }
+
+.stat-strip { display: flex; flex-wrap: wrap; gap: 0; margin-top: 44px; border-top: 1px solid var(--line); }
+.stat { padding: 18px 30px 16px 0; margin-right: 30px; border-right: 1px solid var(--line); }
+.stat:last-child { border-right: none; }
+.stat b { display: block; font-family: var(--mono); font-size: 27px; color: var(--ink); font-weight: 400; letter-spacing: -0.02em; }
+.stat span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); }
+
+/* A figure the chain produced, shown the way the chain produced it. */
+.readout { font-family: var(--mono); font-size: 13px; line-height: 1.9; color: var(--ink-2); }
+.readout .k { color: var(--muted); }
+.readout .v { color: var(--ink); }
+.band.paper .readout { color: #35332e; }
+.band.paper .readout .v { color: var(--paper-ink); }
+.band.paper .readout .k { color: var(--paper-muted); }
+
+.state { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+         text-transform: uppercase; padding: 3px 8px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+.state.settled { color: var(--settled); border-color: var(--settled); background: var(--settled-bg); }
+.state.blocked { color: var(--blocked); border-color: var(--blocked); background: var(--blocked-bg); }
+.state.pending { color: var(--pending); border-color: var(--pending); background: var(--pending-bg); }
+
+.figure { border: 1px solid var(--line); border-radius: 3px; background: var(--surface); padding: 30px; margin: 34px 0 0; }
+.band.void .figure { background: #0d0d10; }
+.band.paper .figure { background: #fff; border-color: var(--paper-line); }
+.figure figcaption { font-size: 14px; color: var(--muted); margin-top: 20px; text-align: center; }
+.band.paper .figure figcaption { color: var(--paper-muted); }
+
+/* Sections fade up once, 200ms, and never again. */
+.rise { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+.rise.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .rise { opacity: 1; transform: none; transition: none; }
+}
