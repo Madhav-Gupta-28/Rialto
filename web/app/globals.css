@@ -288,15 +288,20 @@ footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: va
 .reads .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .reads .v { font-family: var(--mono); font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
-/* Exposure against a ceiling the owner set themselves. */
+/* Capacity against a ceiling the owner set themselves. Two weights of the same
+   pigment: money out, and money promised. */
 .meter { margin: 4px 0 0; }
-.meter .track { height: 6px; background: var(--raised); border-radius: 2px; overflow: hidden; display: flex; }
-.meter .fill { height: 100%; transition: width .5s ease; }
-.meter .fill.live { background: var(--settled); }
-.meter .fill.held { background: var(--pending); }
-.meter .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
-                 font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
-.meter .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 1px; margin-right: 6px; vertical-align: -1px; }
+.meter .track { height: 8px; background: var(--wash-2); border: 1px solid var(--line); border-radius: 2px;
+                overflow: hidden; display: flex; }
+.meter .fill { height: 100%; transition: width .5s cubic-bezier(.3,.7,.4,1); }
+.meter .fill.live { background: var(--ink); }
+.meter .fill.held { background: repeating-linear-gradient(135deg, var(--ink) 0 2px, transparent 2px 5px); }
+.meter .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+                 font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--muted); }
+.meter .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 1px; margin-right: 7px;
+                   vertical-align: -1px; border: 1px solid var(--ink); }
+.meter .legend i.held { background: repeating-linear-gradient(135deg, var(--ink) 0 2px, transparent 2px 4px); }
+.meter .legend b { color: var(--ink); font-weight: 400; }
 
 /* What the borrower is proposing, recalculated as they type.
    A number that changes has to look like it changes, or it reads as a caption. */

@@ -8,6 +8,7 @@ import { marketAbi, mandatesAbi } from "@/lib/abi";
 import { MANDATES, MARKET, BOND, CASH_DECIMALS, hashscan } from "@/lib/chain";
 import { units, short, duration, bps } from "@/lib/format";
 import TxDialog from "@/components/TxDialog";
+import Copy from "@/components/Copy";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -67,18 +68,12 @@ export default function MandatePage() {
 
   return (
     <>
-      <section className="band void" style={{ paddingTop: 104, paddingBottom: 56 }}>
+      <section className="band" style={{ paddingTop: 100, paddingBottom: 44, borderBottom: "none" }}>
         <div className="wrap narrow">
-          <p className="eyebrow">Underwriter</p>
-          <h1 className="claim" style={{ fontSize: "clamp(30px,4.4vw,50px)" }}>
-            Authority on chain.
-            <br />
-            <span className="dim">Judgement anywhere else.</span>
-          </h1>
-          <p className="lede" style={{ maxWidth: "54ch" }}>
-            A mandate is what an agent may do with your money, and the market enforces it. The strategy it
-            follows is a paragraph of English you can change any time. Leave the agent empty and you bid by
-            hand — the contract cannot tell the two apart.
+          <h1 className="claim" style={{ fontSize: "clamp(34px,5vw,56px)" }}>Lend.</h1>
+          <p className="lede" style={{ maxWidth: "46ch", marginTop: 14 }}>
+            Set the limits your money bids inside. Bid by hand, or hand the key to an agent — the market
+            holds both to the same rules.
           </p>
         </div>
       </section>
@@ -101,12 +96,12 @@ export default function MandatePage() {
                     <div className="fill held" style={{ width: `${pct(reserved ?? 0n)}%` }} />
                   </div>
                   <div className="legend">
-                    <span><i style={{ background: "var(--settled)" }} />
-                      funded {units(live ?? 0n, CASH_DECIMALS)}</span>
-                    <span><i style={{ background: "var(--pending)" }} />
-                      standing bids {units(reserved ?? 0n, CASH_DECIMALS)}</span>
+                    <span><i style={{ background: "var(--ink)" }} />
+                      out on loan <b>{units(live ?? 0n, CASH_DECIMALS, 0)}</b></span>
+                    <span><i className="held" />
+                      promised <b>{units(reserved ?? 0n, CASH_DECIMALS, 0)}</b></span>
                     <span style={{ marginLeft: "auto" }}>
-                      {units(headroom, CASH_DECIMALS)} of {units(ceiling, CASH_DECIMALS)} left
+                      <b>{units(headroom, CASH_DECIMALS, 0)}</b> still free
                     </span>
                   </div>
                 </div>
@@ -118,25 +113,33 @@ export default function MandatePage() {
                     <div>
                       <span className="k">Agent</span>
                       <span className="v">
-                        {mandate!.agent === ZERO
-                          ? <span className="sub" style={{ fontSize: 13 }}>none — you bid by hand</span>
-                          : short(mandate!.agent)}
+                        {mandate!.agent === ZERO ? (
+                          <span className="sub" style={{ fontSize: 13 }}>none — you bid by hand</span>
+                        ) : (
+                          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 12 }}>
+                            <Copy value={mandate!.agent} label={short(mandate!.agent)} />
+                            <a href={hashscan(mandate!.agent)} target="_blank" rel="noreferrer"
+                               style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                              ↗
+                            </a>
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div>
-                      <span className="k">Largest single deal</span>
-                      <span className="v">{units(mandate!.maxPerDeal, CASH_DECIMALS)} dUSD</span>
+                      <span className="k">Biggest loan</span>
+                      <span className="v">{units(mandate!.maxPerDeal, CASH_DECIMALS)}</span>
                     </div>
                     <div>
-                      <span className="k">Minimum rate</span>
+                      <span className="k">Lowest rate</span>
                       <span className="v">{bps(Number(mandate!.minRateBps))}</span>
                     </div>
                     <div>
-                      <span className="k">Longest term</span>
+                      <span className="k">Longest loan</span>
                       <span className="v">{duration(mandate!.maxTerm)}</span>
                     </div>
                     <div>
-                      <span className="k">RDN27 as collateral</span>
+                      <span className="k">RDN27</span>
                       <span className="v">
                         {allowed
                           ? <span className="state settled">allowed</span>
@@ -148,17 +151,16 @@ export default function MandatePage() {
                   <div>
                     <span className="k">Status</span>
                     <span className="v sub" style={{ fontSize: 13 }}>
-                      Nothing set. The market will refuse any bid you place.
+                      Nothing set — the market will refuse any bid you place.
                     </span>
                   </div>
                 )}
               </div>
 
               {active && (
-                <p className="note" style={{ marginTop: 16 }}>
-                  Standing bids count against the ceiling as well as funded ones. Without that, holding the
-                  best bid on twenty auctions would pass every limit check separately and breach it the
-                  moment they all awarded.
+                <p className="note" style={{ marginTop: 14 }}>
+                  A standing bid counts against your ceiling too — otherwise twenty best bids would each
+                  pass on their own and blow through it together.
                 </p>
               )}
             </div>
@@ -166,29 +168,41 @@ export default function MandatePage() {
         )}
 
         <div className="card">
-          <p className="eyebrow">{active ? "Replace your mandate" : "Set a mandate"}</p>
+          <p className="eyebrow">{active ? "Change your limits" : "Set your limits"}</p>
 
           <label className="field">
-            <span className="name">Agent key — leave empty to bid by hand</span>
+            <span className="name">Agent key — leave empty and you bid yourself</span>
             <input className="text" placeholder="0x…" value={agent} onChange={(e) => setAgent(e.target.value)} />
             <span className="hint" style={agentOk ? undefined : { color: "var(--bad)" }}>
               {agentOk
-                ? "One key serves exactly one owner, so a stolen key cannot spend two balance sheets."
+                ? "One key, one owner. A stolen key still cannot exceed these limits."
                 : "not a valid address"}
             </span>
           </label>
 
-          <div className="grid two">
-            <Field name="Largest single deal (dUSD)" value={perDeal} onChange={setPerDeal} problem={pd.ok ? undefined : pd.why} />
-            <Field name="Total ceiling (dUSD)" value={total} onChange={setTotal} problem={tot.ok ? undefined : tot.why} />
-            <Field name="Minimum rate (bps)" value={minRate} onChange={setMinRate} hint="500 = 5.00%" problem={rate.ok ? undefined : rate.why} />
-            <Field name="Longest term (days)" value={maxTerm} onChange={setMaxTerm} hint="60 maximum" problem={term.ok ? undefined : term.why} />
+          <div className="fieldset">
+            <p className="lab"><span>How much</span></p>
+            <div className="grid two">
+              <Field name="Biggest single loan (dUSD)" value={perDeal} onChange={setPerDeal} problem={pd.ok ? undefined : pd.why} />
+              <Field name="Most you will lend at once (dUSD)" value={total} onChange={setTotal} problem={tot.ok ? undefined : tot.why} />
+            </div>
+          </div>
+
+          <div className="fieldset">
+            <p className="lab">
+              <span>What you will accept</span>
+              <span>{rate.ok ? bps(Number(rate.value)) : ""}</span>
+            </p>
+            <div className="grid two">
+              <Field name="Lowest rate (bps)" value={minRate} onChange={setMinRate} hint="500 = 5.00%" problem={rate.ok ? undefined : rate.why} />
+              <Field name="Longest loan (days)" value={maxTerm} onChange={setMaxTerm} hint="60 maximum" problem={term.ok ? undefined : term.why} />
+            </div>
           </div>
 
           {!isConnected ? (
             <p className="sub">Connect a wallet to set a mandate.</p>
           ) : (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="actions" style={{ gap: 10, flexWrap: "wrap" }}>
               <button
                 className="btn"
                 disabled={isPending || !mandateValid}
@@ -215,7 +229,7 @@ export default function MandatePage() {
                   );
                 }}
               >
-                {isPending ? "Signing…" : active ? "Replace mandate" : "Set mandate"}
+                {isPending ? "Signing…" : active ? "Update limits" : "Set your limits"}
               </button>
 
               {!allowed && (
@@ -230,7 +244,7 @@ export default function MandatePage() {
                     );
                   }}
                 >
-                  Allow RDN27 as collateral
+                  Accept RDN27
                 </button>
               )}
 
@@ -250,7 +264,7 @@ export default function MandatePage() {
           )}
 
           {isConnected && !allowed && (
-            <p className="hint">You cannot bid on a security your mandate does not list.</p>
+            <p className="hint">You cannot bid on a bond you have not accepted.</p>
           )}
 
           <TxDialog hash={hash} error={error} action={action.label} done={action.done} onClose={reset} />
