@@ -21,7 +21,10 @@ export default function Borrow() {
   const [collateral, setCollateral] = useState("10500");
   const [principal, setPrincipal] = useState("10000");
   const [days, setDays] = useState("30");
-  const [window, setWindow] = useState("300");
+  // Not `window`. A local of that name shadows the global inside this whole
+  // component, so any later `window.matchMedia` here would read a string and
+  // throw — and it would look correct on the page it was written on.
+  const [bidWindow, setBidWindow] = useState("300");
 
   const { data: balance } = useReadContract({
     address: BOND, abi: securityAbi, functionName: "balanceOf",
@@ -41,7 +44,7 @@ export default function Borrow() {
   const c = amount(collateral, BOND_DECIMALS);
   const pr = amount(principal, CASH_DECIMALS);
   const t = parseDays(days, 60);
-  const w = parseSeconds(window, 60, 604_800);
+  const w = parseSeconds(bidWindow, 60, 604_800);
 
   const wanted = c.ok ? c.value : 0n;
   const needsApproval = (allowance ?? 0n) < wanted || wanted === 0n;
@@ -120,7 +123,7 @@ export default function Borrow() {
             </p>
             <div className="grid two">
               <Field name="Loan length (days)" value={days} onChange={setDays} hint="60 maximum" problem={t.ok ? undefined : t.why} />
-              <Field name="Bidding open for (seconds)" value={window} onChange={setWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
+              <Field name="Bidding open for (seconds)" value={bidWindow} onChange={setBidWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
             </div>
           </div>
 
