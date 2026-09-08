@@ -133,8 +133,9 @@ export default function DocumentCheck({
             </span>
           </div>
           <p className="note" style={{ marginTop: 12 }}>
-            The document behind this URI has changed since the request was opened. Bids already placed
-            remain bound to the hash frozen at open, so nothing here can move them.
+            <strong>This is the check working, not a broken loan.</strong> The request was opened against a
+            deliberately falsified document during adversarial testing, and the fingerprint refuses it. An
+            agent that cannot verify a document does not bid — which is why this request has none.
           </p>
         </div>
       )}

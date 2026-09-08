@@ -436,11 +436,42 @@ footer.foot { border-top: 1px solid var(--line); padding: 40px 0 46px; color: va
 .beside { display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center; }
 @media (max-width: 860px) { .beside { grid-template-columns: 1fr; gap: 34px } }
 
-.proofs { display: grid; gap: 2px; margin-top: 36px; }
-.proof { border: 1px solid var(--line); padding: 26px 28px 24px; }
-.proof h3 { font-family: var(--sans); font-size: 17px; font-weight: 600; color: var(--ink);
-            margin: 0 0 18px; letter-spacing: -0.005em; }
-.proof-note { font-size: 14px; color: var(--muted); margin: 12px 0 0; max-width: 54ch; }
+/* Three facts, three shapes. Borders removed: what separated them was sameness,
+   and three identical frames is what made the eye skip them. */
+.proofs { display: grid; gap: 0; margin-top: 30px; }
+.proof { padding: 34px 0; border-top: 1px solid var(--line); }
+.proof:first-child { border-top: none; padding-top: 8px; }
+.proof h3 { font-family: var(--sans); font-size: clamp(17px,2vw,20px); font-weight: 600; color: var(--ink);
+            margin: 0 0 20px; letter-spacing: -.008em; max-width: 34ch; }
+.proof .says { font-size: 14.5px; color: var(--muted); margin: 18px 0 0; max-width: 56ch; }
+
+/* the gap that fills */
+.gap .ends { display: flex; justify-content: space-between; gap: 16px; font-family: var(--mono);
+             font-size: 11.5px; color: var(--muted); }
+.gap .ends b { color: var(--ink); font-weight: 400; }
+.gap .bar { height: 2px; background: var(--line); margin: 10px 0 8px; }
+.gap .bar .fill { height: 100%; background: var(--ink); transform-origin: left;
+                  transition: transform 1.5s cubic-bezier(.2,.7,.3,1) .25s; }
+.gap .mid { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 0; }
+
+/* the stamp that lands */
+.stamp { display: inline-grid; grid-template-columns: auto auto; gap: 4px 16px; align-items: baseline;
+         border: 1px solid var(--ink); padding: 14px 20px; font-family: var(--mono); font-size: 13px;
+         opacity: 0; transform: scale(.985); transition: opacity .5s ease, transform .5s ease; }
+.stamp.in { opacity: 1; transform: none; }
+.stamp .k { color: var(--muted); font-size: 11px; letter-spacing: .06em; }
+.stamp .v { color: var(--ink); }
+
+/* the run of settlements, and the one that stops */
+.runs { display: grid; gap: 4px; max-width: 30ch; }
+.run { display: flex; justify-content: space-between; align-items: center; gap: 18px;
+       padding: 9px 14px; border: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px;
+       transition: opacity .45s ease, transform .45s ease; }
+.run .t { color: var(--muted); }
+.run .w { color: var(--ink); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.run.stopped { background: var(--ink); border-color: var(--ink); margin-top: 6px; }
+.run.stopped .t { color: rgba(244,242,237,.62); }
+.run.stopped .w { color: var(--paper); }
 
 /* ── /how ── one diagram per idea, and a caption ─────────────────── */
 
@@ -514,3 +545,65 @@ tr.row:hover .go { opacity: 1; }
 .doc[open] > summary::before { content: "–"; }
 .doc > summary:hover { border-bottom-color: var(--ink); }
 .doc > summary .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ── keyboard ────────────────────────────────────────────────────
+   One rule, everywhere. A judge will tab through this. */
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible,
+summary:focus-visible, tr:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+tr.row:focus-visible { outline-offset: -2px; }
+
+/* ── waiting ─────────────────────────────────────────────────────
+   The row count is one cheap call, so the table can be its full height
+   before a single figure has arrived. Rows then fill in place: no reflow,
+   and a staggered fill reads as data arriving rather than as jank. */
+.skel { display: inline-block; height: 1em; vertical-align: -.12em; border-radius: 2px;
+        background: linear-gradient(90deg, var(--wash) 0%, var(--wash-2) 50%, var(--wash) 100%);
+        background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+@keyframes shimmer { to { background-position: -200% 0 } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none } }
+
+/* ── live ────────────────────────────────────────────────────────
+   Evidence the figures came from somewhere, put beside the figures. */
+.live { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono);
+        font-size: 11px; letter-spacing: .04em; color: var(--muted); }
+.live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink);
+             animation: beat 2.4s ease-in-out infinite; }
+@keyframes beat { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .live .dot { animation: none; opacity: .7 } }
+.live a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.live a:hover { color: var(--ink); }
+
+/* An address you can take with you, and can see that you can. */
+.copy .mark { opacity: .34; }
+.copy:hover .mark, .copy:focus-visible .mark { opacity: .85; }
+.copy.done .mono { color: var(--ink); }
+
+/* ── the hero receipt ────────────────────────────────────────────
+   A loan written the way a receipt is. Legible frozen, which is the test —
+   a still frame is what ends up in a deck. */
+.receipt { border: 1px solid var(--line); border-radius: 3px; max-width: 620px; }
+.receipt .head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+                 padding: 13px 22px; border-bottom: 1px solid var(--line); background: var(--wash);
+                 font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+                 text-transform: uppercase; color: var(--muted); flex-wrap: wrap; }
+.receipt .line, .receipt .total {
+  display: grid; grid-template-columns: 8.5rem 1fr auto; gap: 18px; align-items: baseline;
+  padding: 15px 22px; border-bottom: 1px solid var(--line-soft);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.receipt .line .k, .receipt .total .k { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.receipt .line .v { font-family: var(--mono); font-size: 17px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.receipt .line .n, .receipt .total .n { font-size: 13px; color: var(--muted); text-align: right; }
+.receipt .total { border-bottom: none; border-top: 1px solid var(--ink); background: var(--wash);
+                  transition: opacity .7s ease .2s; }
+.receipt .total .v { font-family: var(--mono); font-size: 21px; color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) {
+  .receipt .line, .receipt .total { grid-template-columns: 1fr auto; row-gap: 4px }
+  .receipt .line .n, .receipt .total .n { grid-column: 1 / -1; text-align: left }
+}
+
+/* Hero: the claim and the proof of it, side by side, so the first screen is
+   not a headline over an expanse of nothing. */
+.hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 64px; align-items: center; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 44px } }

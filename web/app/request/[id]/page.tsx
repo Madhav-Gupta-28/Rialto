@@ -195,6 +195,15 @@ export default function RequestPage() {
                 obstacle={obstacle}
                 principal={r.principal}
                 borrower={r.borrower}
+                closed={
+                  r.status === 2
+                    ? "Repaid in full. The bond went back to the borrower."
+                    : r.status === 3
+                      ? "It was not repaid in time, so the collateral went to the lender."
+                      : r.status === 4
+                        ? "Withdrawn before anyone funded it. The bond went straight back."
+                        : undefined
+                }
                 due={due ?? r.repayAmount}
                 term={r.term}
                 biddingOpen={biddingOpen}
@@ -295,6 +304,8 @@ function Actions(props: {
   obstacle: Obstacle | null;
   principal: bigint;
   borrower: `0x${string}`;
+  /** Set once the loan can no longer be acted on, and says how it ended. */
+  closed?: string;
   due: bigint;
   term: bigint;
   biddingOpen: boolean;
@@ -405,6 +416,17 @@ function Actions(props: {
     setAction(OUTCOME[fn] ?? { label: fn, done: "" });
     write({ address: MARKET, abi: marketAbi, functionName: fn, args: [props.id] }, { onSuccess: props.onDone });
   };
+
+  // A settled loan has nothing to act on, and an empty bordered card reads as a
+  // rendering failure rather than as an ending. Say how it ended instead.
+  if (props.closed) {
+    return (
+      <div className="card">
+        <p className="eyebrow">This loan is closed</p>
+        <p className="sub" style={{ margin: 0 }}>{props.closed}</p>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

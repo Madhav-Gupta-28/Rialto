@@ -117,16 +117,13 @@ export default function ManufacturedPayment({
     );
   };
 
+  if (nothingToShow) return null;
+
   return (
     <div className="card">
       <p className="eyebrow">Income while locked</p>
 
-      {nothingToShow ? (
-        <p className="sub">
-          No coupon on this security has a record date inside the loan&rsquo;s term, so there is no
-          manufactured payment to settle.
-        </p>
-      ) : (
+      {true && (
         <>
           <p className="lede" style={{ fontSize: 14, marginBottom: 16 }}>
             The bond pays whoever holds it, and right now that is the escrow. Rialto hands that income

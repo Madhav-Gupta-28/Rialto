@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Rise from "@/components/figures/Rise";
 import Loan from "@/components/figures/Loan";
+import Receipt from "@/components/figures/Receipt";
 import Ask from "@/components/figures/Ask";
 import Bids from "@/components/figures/Bids";
-import Sequence from "@/components/figures/Sequence";
+import Proofs from "@/components/figures/Proofs";
 
 /**
  * Four beats: what you can do, why you cannot do it today, how we get around
@@ -17,24 +18,29 @@ export default function Home() {
   return (
     <>
       {/* what it is */}
-      <section className="band" style={{ paddingTop: 128, paddingBottom: 0, borderBottom: "none" }}>
+      <section className="band" style={{ paddingTop: 116, paddingBottom: 104, borderBottom: "none" }}>
         <div className="wrap">
-          <h1 className="claim" style={{ maxWidth: "17ch" }}>
-            Borrow against bonds nobody can price.
-          </h1>
-          <p className="lede" style={{ maxWidth: "46ch", marginTop: 28, fontSize: 19 }}>
-            Lenders read the bond&rsquo;s own paperwork and bid to fund you. You get it back when you repay,
-            and it keeps paying you the whole time.
-          </p>
-
-          <div style={{ marginTop: 36, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link className="btn" href="/borrow">Borrow</Link>
-            <Link className="btn ghost" href="/mandate">Lend</Link>
+          <div className="hero">
+            <div>
+              <h1 className="claim" style={{ maxWidth: "15ch" }}>
+                Borrow against bonds nobody can price.
+              </h1>
+              <p className="lede" style={{ maxWidth: "40ch", marginTop: 24, fontSize: 18 }}>
+                Lenders read the bond&rsquo;s own paperwork and bid to fund you. You get it back when you
+                repay, and it keeps paying you the whole time.
+              </p>
+              <div style={{ marginTop: 32, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <Link className="btn" href="/borrow">Borrow</Link>
+                <Link className="btn ghost" href="/mandate">Lend</Link>
+              </div>
+            </div>
+            <Receipt />
           </div>
         </div>
       </section>
 
-      <section className="band" style={{ paddingTop: 112, paddingBottom: 112 }}>
+      {/* the shape of it */}
+      <section className="band" style={{ paddingTop: 0, paddingBottom: 104 }}>
         <div className="wrap">
           <div className="hero-figure" style={{ marginTop: 0 }}>
             <Loan />
@@ -96,66 +102,7 @@ export default function Home() {
               Three things that have happened.
             </h2>
 
-            <div className="proofs">
-              <div className="proof">
-                <h3>The lender explained itself before it knew if it had won.</h3>
-                <Sequence
-                  gap={420}
-                  rows={[
-                    <p className="readout" style={{ margin: 0 }} key="a">
-                      <span className="k">20:36:21</span> <span className="v">reasoning published</span>
-                    </p>,
-                    <p className="readout" style={{ margin: 0 }} key="b">
-                      <span className="k">20:37:22</span> <span className="v">loan awarded</span>
-                    </p>,
-                    <p className="proof-note" key="c">
-                      61 seconds apart, and the bid carries the first message&rsquo;s hash.
-                    </p>,
-                  ]}
-                />
-              </div>
-
-              <div className="proof">
-                <h3>A loan settled itself with nobody watching.</h3>
-                <Sequence
-                  gap={440}
-                  rows={[
-                    <p className="readout" style={{ margin: 0 }} key="a">
-                      <span className="k">scheduled</span> <span className="v">true</span>
-                    </p>,
-                    <p className="readout" style={{ margin: 0 }} key="b">
-                      <span className="k">payer</span> <span className="v">the contract itself</span>
-                    </p>,
-                    <p className="proof-note" key="c">
-                      No keeper, no bot. Hedera closed the loan and paid its own fee.
-                    </p>,
-                  ]}
-                />
-              </div>
-
-              <div className="proof">
-                <h3>The issuer froze the lender, and the network could not settle.</h3>
-                <Sequence
-                  rows={[
-                    <p className="readout" style={{ margin: 0 }} key="a">
-                      <span className="k">20:54:13</span> <span className="v">settle</span>{" "}
-                      <span className="state settled">ok</span>
-                    </p>,
-                    <p className="readout" style={{ margin: 0 }} key="b">
-                      <span className="k">20:54:22</span> <span className="v">settle</span>{" "}
-                      <span className="state settled">ok</span>
-                    </p>,
-                    <p className="readout" style={{ margin: 0 }} key="c">
-                      <span className="k">21:11:12</span> <span className="v">settle</span>{" "}
-                      <span className="state blocked">blocked</span>
-                    </p>,
-                    <p className="proof-note" key="d">
-                      The loan held. Nothing was lost, and it completed once the block lifted.
-                    </p>,
-                  ]}
-                />
-              </div>
-            </div>
+            <Proofs />
           </Rise>
         </div>
       </section>

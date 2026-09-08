@@ -19,7 +19,7 @@ export default function Copy({ value, label }: { value: string; label: string })
   return (
     <button
       type="button"
-      className="copy"
+      className={`copy${done ? " done" : ""}`}
       title={value}
       aria-label={`Copy ${value}`}
       onClick={(e) => {
@@ -35,8 +35,8 @@ export default function Copy({ value, label }: { value: string; label: string })
         );
       }}
     >
-      <span className="mono">{label}</span>
-      <span className="mark" aria-hidden="true">{done ? "copied" : "copy"}</span>
+      <span className="mono">{done ? "copied" : label}</span>
+      <span className="mark" aria-hidden="true">{done ? "✓" : "⧉"}</span>
     </button>
   );
 }
