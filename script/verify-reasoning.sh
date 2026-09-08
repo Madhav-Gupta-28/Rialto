@@ -6,12 +6,19 @@
 # that message's hash into the bid. Consensus timestamps the reasoning, so it
 # cannot have been written to fit an outcome it predates.
 #
-# A message over 1024 bytes is split into chunks by the SDK, and the hash is
-# over the whole message — so the chunks have to be joined before hashing.
-# Reasoning from a model routinely runs past that limit, which is why this
-# reassembles rather than reading a single message.
+# The check runs in the direction that proves something. It reads `reasoningRef`
+# off the chain first, then looks for the consensus message that hashes to it —
+# rather than picking a message and hoping. That ordering matters because a
+# request can carry more than one published opinion: before the agent learned to
+# treat a refused bid as an answer, a bid that lost to its own earlier one was
+# retried, and the second opinion was published and then discarded. Searching by
+# recency finds that orphan and reports a mismatch on a request where the claim
+# is true.
 #
-#   script/verify-reasoning.sh 9
+# A message over 1024 bytes is split into chunks by the SDK, and the hash is
+# over the whole message — so the chunks are joined before hashing.
+#
+#   script/verify-reasoning.sh 22
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -19,46 +26,99 @@ set -a; source .env; set +a
 
 ID="${1:?usage: verify-reasoning.sh <requestId>}"
 MIRROR="${MIRROR_NODE:-https://testnet.mirrornode.hedera.com/api/v1}"
-TMP=$(mktemp)
-trap 'rm -f "$TMP"' EXIT
+GET='get(uint256)((address,uint64,uint8,address,uint64,bool,address,uint64,address,uint256,uint256,uint256,bytes32,bytes32))'
 
-curl -s "$MIRROR/topics/$HCS_TOPIC_ID/messages?limit=100&order=desc" \
-| ID="$ID" OUT="$TMP" python3 -c '
-import sys, json, base64, os, collections
-want, out = os.environ["ID"], os.environ["OUT"]
-messages = json.load(sys.stdin)["messages"]
+field() {
+  cast call "$MARKET_ADDRESS" "$GET" "$ID" --rpc-url "$HEDERA_TESTNET_RPC" \
+    | tr -d '()' | tr ',' '\n' | awk '{print $1}' | sed -n "$1p"
+}
+
+REF=$(cast call "$MARKET_ADDRESS" 'bestBid(uint256)((address,address,uint256,bytes32))' "$ID" \
+  --rpc-url "$HEDERA_TESTNET_RPC" | tr -d '()' | tr ',' '\n' | sed -n 4p | awk '{print $1}')
+
+TERM=$(field 2); DUE=$(field 8)
+AWARDED=$(( DUE - TERM ))
+
+echo "request $ID"
+echo "  reasoningRef on chain   $REF"
+
+if [ "$REF" = "0x0000000000000000000000000000000000000000000000000000000000000000" ]; then
+  echo "  no reasoning reference — this bid was placed by hand, not by an agent"
+  exit 0
+fi
 
 # Every chunk of one message shares an initial_transaction_id; an unchunked
-# message has none, so it is grouped on its own sequence number.
+# message has none, so it is grouped on its own sequence number. Each group is
+# emitted as one line the shell can hash.
+# The public mirror node rate-limits and occasionally answers with something
+# that is not JSON. Retry rather than showing a stack trace.
+CANDIDATES=$(curl -s --retry 3 --retry-delay 2 --retry-all-errors --max-time 30 \
+  "$MIRROR/topics/$HCS_TOPIC_ID/messages?limit=200&order=desc" \
+| ID="$ID" python3 -c '
+import sys, json, base64, os, collections
+want = os.environ["ID"]
+raw = sys.stdin.read()
+try:
+    messages = json.loads(raw)["messages"]
+except Exception:
+    sys.stderr.write("  the mirror node did not return readable JSON — try again in a moment\n")
+    sys.exit(2)
 groups = collections.defaultdict(list)
 for m in messages:
     info = m.get("chunk_info") or {}
     origin = info.get("initial_transaction_id") or {}
     key = (origin.get("account_id"), origin.get("transaction_valid_start")) if origin else m["sequence_number"]
-    groups[key].append((info.get("number", 1), m["consensus_timestamp"], base64.b64decode(m["message"])))
+    groups[key].append((info.get("number", 1), m["consensus_timestamp"], m["sequence_number"], base64.b64decode(m["message"])))
 
 for parts in groups.values():
-    body = b"".join(p for _, _, p in sorted(parts))
+    body = b"".join(p for _, _, _, p in sorted(parts))
     try:
         published = json.loads(body)
     except Exception:
         continue
     if str(published.get("requestId")) != want:
         continue
-    open(out, "wb").write(body)
-    print(f"  reassembled        {len(body)} bytes from {len(parts)} chunk(s)")
-    print(f"  consensus at       {min(t for _, t, _ in parts)}")
-    amount, rate = published.get("repayAmount"), published.get("rateBps")
-    print(f"  it says            bid {amount} at {rate}bps")
-    break
-else:
-    sys.exit(f"  no reasoning published for request {want}")
-'
+    seqs = "+".join(str(s) for _, _, s, _ in sorted(parts))
+    at = min(t for _, t, _, _ in parts)
+    amount = published.get("repayAmount")
+    rate = published.get("rateBps")
+    print("|".join([seqs, str(at), str(amount), str(rate), str(len(body)), body.hex()]))
+')
 
-echo "  keccak(reasoning)  $(cast keccak "0x$(xxd -p "$TMP" | tr -d '\n')")"
-echo "  reasoningRef       $(cast call "$MARKET_ADDRESS" \
-  'bestBid(uint256)((address,address,uint256,bytes32))' "$ID" --rpc-url "$HEDERA_TESTNET_RPC" \
-  | tr -d '()' | tr ',' '\n' | sed -n 4p | awk '{print $1}')"
+if [ -z "$CANDIDATES" ]; then
+  echo "  no message on topic $HCS_TOPIC_ID names request $ID"
+  echo "  (the topic holds the most recent 200 messages; an older request may have scrolled off)"
+  exit 1
+fi
+
+TOTAL=$(echo "$CANDIDATES" | wc -l | tr -d ' ')
+echo "  opinions on the topic   $TOTAL"
 echo
-echo "  The two hashes must be identical, and the consensus timestamp above must"
-echo "  precede the Awarded event for this request."
+
+MATCHED=0
+while IFS='|' read -r SEQ AT AMOUNT RATE SIZE HEX; do
+  H=$(cast keccak "0x$HEX")
+  if [ "$H" = "$REF" ]; then
+    MATCHED=1
+    echo "  MATCH — sequence $SEQ"
+    echo "    $SIZE bytes, says bid $AMOUNT at ${RATE}bps"
+    echo "    published at consensus  $AT"
+    echo "    awarded at              $AWARDED"
+    if [ "${AT%%.*}" -lt "$AWARDED" ]; then
+      echo "    the reasoning predates the award by $(( AWARDED - ${AT%%.*} ))s"
+    else
+      echo "    WARNING: the reasoning does NOT predate the award"
+    fi
+  else
+    echo "  sequence $SEQ — says bid $AMOUNT, hashes to ${H:0:18}… (not this bid)"
+  fi
+done <<< "$CANDIDATES"
+
+echo
+if [ "$MATCHED" = "1" ]; then
+  echo "  The bid on chain carries the hash of a message the network timestamped"
+  echo "  before the award. It cannot have been written to fit the outcome."
+else
+  echo "  NO MATCH. No message on this topic hashes to the reference in the bid."
+  exit 1
+fi
