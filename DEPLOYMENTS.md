@@ -184,6 +184,10 @@ Coupon `#4`, record date `1788617561`, inside a loan running
 `1788617392 → 1788619192`. `scheduleCoupon` booked it; nobody touched it after
 that.
 
+This run predates the current market; the schedule below belongs to the
+deployment it superseded. The same mechanism on the current market is in
+§ "The lifecycle on the current market, run end to end".
+
 ```
 schedule 0.0.10379023   executed_timestamp 1788617621.148907690
 
@@ -232,27 +236,51 @@ books is still claimable by hand.
 
 The claim is no longer that Hedera *will* call `claim` at maturity. It did.
 
-A three-minute loan was awarded and then deliberately abandoned — nobody
-watched it, nobody sent a transaction. At maturity plus the margin:
+Request #22 was a twelve-minute loan, awarded and then deliberately abandoned —
+nobody watched it, nobody sent a transaction. At maturity plus the margin:
 
 ```
-schedule            0.0.10377580
-executed_timestamp  1788609059.141412073
-transaction         CONTRACTCALL  SUCCESS   entity 0.0.10377546   fee 0.271 HBAR
+schedule            0.0.10420562
+booked at           1788866025          <- inside award()
+expiration_time     1788866804          =  dueAt 1788866744 + SETTLEMENT_MARGIN 60
+executed_timestamp  1788866804.017150496
+transaction         CONTRACTCALL  SUCCESS   entity 0.0.10382007   fee 0.3404 HBAR
 ```
 
 ```
-request #0 status   Defaulted
+request #22 status  Defaulted
 lender              0x31f66ee3…   +2,100 RDN27
-liveExposure        0
 ```
 
-No keeper, no bot, no cron. The market contract paid for its own settlement out
-of the HBAR balance it holds for exactly that.
+It executed in the second it was booked for, thirteen minutes after the
+transaction that booked it, and the scheduled body decodes to the call it claims
+to be:
 
-### It took three attempts, and the first two are the interesting part
+```
+to          0x9040986da679d00f0aa93ca21e1c9aa2143121a4   <- the market
+calldata    0x379607f5 0000…0016                          claim(uint256), arg 22
+```
 
-The first two schedules fired on time and **reverted**. Both cheaply — about
+No keeper, no bot, no cron. `entity` on the execution is `0.0.10382007` — the
+market itself. It paid for its own settlement out of the HBAR balance it holds
+for exactly that.
+
+Across the current market to date: **20 settlements booked, 11 executed by the
+network unattended, 7 released when the borrower repaid early**, and the market
+is `payer_account_id` on every one. Reproduce that count with:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/schedules?account.id=0.0.10367270&limit=100&order=desc" \
+  | jq '[.schedules[] | select(.payer_account_id == "0.0.10382007")]
+        | {booked: length,
+           executed: ([.[] | select(.executed_timestamp)] | length),
+           released: ([.[] | select(.deleted)] | length)}'
+```
+
+### Getting there took three attempts, and the first two are the interesting part
+
+That was on an earlier deployment, before `SETTLEMENT_MARGIN` existed. The first
+two schedules fired on time and **reverted**. Both cheaply — about
 0.035 HBAR, roughly thirty thousand gas — where an out-of-gas at a 400,000
 limit would have cost fifteen times that. That fee is the whole tell: a cheap
 revert is a failed `require`, not an exhausted budget.
@@ -341,16 +369,16 @@ Awarding on the current market emits `SettlementScheduled`, and the schedule is
 a real Hedera entity — not a keeper, not a bot:
 
 ```bash
-curl -s https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10367472
+curl -s https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10420562
 ```
 
 ```
-schedule_id        0.0.10367472
+schedule_id        0.0.10420562
 creator            0.0.10367270      <- the account that paid for the award tx
-payer              0.0.10367414      <- the market contract, which pays when it fires
-expiration_time    1791140001        <- one second after maturity
+payer              0.0.10382007      <- the market contract, which pays when it fires
+expiration_time    1788866804        <- maturity plus the 60s margin
 wait_for_expiry    true
-executed_timestamp null               <- waiting
+executed_timestamp 1788866804.017150496
 deleted            false
 ```
 
@@ -363,22 +391,26 @@ The claim that the network will call `claim` is better checked against the
 scheduled body itself, which is 68 bytes and decodes to exactly that:
 
 ```
-contains the market address 0x39535e5f…   true
+contains the market address 0x9040986d…   true
 contains claim(uint256) selector          true   (0x379607f5)
-scheduled calldata                        0x379607f5 0000…0000
+scheduled calldata                        0x379607f5 0000…0016
 ```
 
-So at that second Hedera calls `claim(0)` on the market. Nobody has to be
+So at that second Hedera calls `claim(22)` on the market. Nobody has to be
 watching.
 
-Repaying releases it. Verified on the schedule the audited market created and
-then cancelled:
+Repaying releases it. Request #21 was booked the same way and repaid before
+maturity, so the network handed the booking back instead of running it:
 
 ```
-schedule_id  0.0.10373549
+schedule_id  0.0.10420507
+payer        0.0.10382007
 deleted      true
 executed_timestamp null
 ```
+
+Two requests, awarded five minutes apart, taking the two different endings —
+#22 closed by the network, #21 released on repayment.
 
 ### The bug that made the first market unable to do this
 
