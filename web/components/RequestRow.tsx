@@ -1,54 +1,47 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useReadContract } from "wagmi";
-import { marketAbi } from "@/lib/abi";
-import { MARKET, CASH_DECIMALS, BOND_DECIMALS } from "@/lib/chain";
+import { CASH_DECIMALS, BOND_DECIMALS } from "@/lib/chain";
 import { units, duration, rateLabel, short } from "@/lib/format";
+import { rateOf, ZERO_ADDRESS, type Loan, type BestBid } from "@/lib/market";
 import StatusPill from "./Status";
 import Copy from "./Copy";
 
 /**
  * One loan, as a row.
  *
- * The row holds its height before its figures arrive. Twenty-one rows each
- * making three calls is eighty-four round trips resolving in whatever order the
- * network returns them, and a row that renders nothing until it is complete
- * makes the table assemble itself in fragments while the page grows. Reserving
- * the space turns that into figures filling in place, which is what is actually
- * happening.
+ * The row holds no chain call of its own. It used to make three, which meant
+ * the market read every loan twice — once for the tally above the table, once
+ * again here — and paid for twenty-one of those reads twice over. Everything it
+ * needs now arrives as props from the one batched read the page already makes.
+ *
+ * It still holds its height before the figures arrive, because they arrive
+ * together and a table that grows as they land makes the page jump under
+ * whoever is reading it.
  *
  * The whole row is the link — a nine-column table where only a four-character
  * id is clickable makes the reader hunt. The id stays a real anchor so keyboard
  * and middle-click still work, and the row itself is focusable.
  */
-export default function RequestRow({ id }: { id: bigint }) {
+export default function RequestRow({
+  id,
+  loan,
+  best,
+  bids,
+}: {
+  id: bigint;
+  loan?: Loan;
+  best?: BestBid;
+  bids?: bigint;
+}) {
   const router = useRouter();
-  const { data: r } = useReadContract({ address: MARKET, abi: marketAbi, functionName: "get", args: [id] });
-  const { data: best } = useReadContract({ address: MARKET, abi: marketAbi, functionName: "bestBid", args: [id] });
-  const { data: count } = useReadContract({ address: MARKET, abi: marketAbi, functionName: "bidCount", args: [id] });
-
   const href = `/request/${id}`;
 
-  if (!r) {
-    return (
-      <tr className="row" aria-busy="true">
-        <td><span className="skel" style={{ width: 26 }} /></td>
-        <td><span className="skel" style={{ width: 76, height: "1.4em" }} /></td>
-        <td className="fig"><span className="skel" style={{ width: 44 }} /></td>
-        <td className="fig"><span className="skel" style={{ width: 44 }} /></td>
-        <td><span className="skel" style={{ width: 24 }} /></td>
-        <td className="fig"><span className="skel" style={{ width: 72 }} /></td>
-        <td className="fig"><span className="skel" style={{ width: 40 }} /></td>
-        <td className="fig"><span className="skel" style={{ width: 12 }} /></td>
-        <td className="wide"><span className="skel" style={{ width: 92 }} /></td>
-      </tr>
-    );
-  }
+  if (!loan) return <SkeletonRow />;
 
   const bid = best?.[2] ?? 0n;
-  const hasBid = (best?.[0] ?? "0x0") !== "0x0000000000000000000000000000000000000000";
-  const rate = hasBid && r.principal > 0n ? rateOf(r.principal, bid, r.term) : null;
+  const hasBid = (best?.[0] ?? ZERO_ADDRESS) !== ZERO_ADDRESS;
+  const rate = hasBid && loan.principal > 0n ? rateOf(loan.principal, bid, loan.term) : null;
 
   return (
     <tr
@@ -66,11 +59,11 @@ export default function RequestRow({ id }: { id: bigint }) {
         <span className="go">→</span>
       </td>
       <td>
-        <StatusPill status={r.status} />
+        <StatusPill status={loan.status} />
       </td>
-      <td className="fig">{units(r.principal, CASH_DECIMALS)}</td>
-      <td className="fig">{units(r.collateralAmount, BOND_DECIMALS, 0)}</td>
-      <td>{duration(r.term)}</td>
+      <td className="fig">{units(loan.principal, CASH_DECIMALS)}</td>
+      <td className="fig">{units(loan.collateralAmount, BOND_DECIMALS, 0)}</td>
+      <td>{duration(loan.term)}</td>
       <td className="fig">
         {best === undefined ? (
           <span className="skel" style={{ width: 72 }} />
@@ -82,18 +75,28 @@ export default function RequestRow({ id }: { id: bigint }) {
       </td>
       <td className="fig">{rate !== null ? rateLabel(rate) : <span className="sub">—</span>}</td>
       <td className="fig">
-        {count === undefined ? <span className="skel" style={{ width: 12 }} /> : count.toString()}
+        {bids === undefined ? <span className="skel" style={{ width: 12 }} /> : bids.toString()}
       </td>
       <td className="wide">
-        <Copy value={r.borrower} label={short(r.borrower)} />
+        <Copy value={loan.borrower} label={short(loan.borrower)} />
       </td>
     </tr>
   );
 }
 
-/** Mirrors RialtoMarket.rateBps so a row does not need a chain call to show it. */
-function rateOf(principal: bigint, repay: bigint, term: bigint): number {
-  if (repay <= principal || principal === 0n || term === 0n) return 0;
-  const v = ((repay - principal) * 10_000n * 31_536_000n) / (principal * term);
-  return v > 65535n ? 65535 : Number(v);
+/** The row's shape before its figures exist, so the table is its full height at once. */
+export function SkeletonRow() {
+  return (
+    <tr className="row" aria-busy="true">
+      <td><span className="skel" style={{ width: 26 }} /></td>
+      <td><span className="skel" style={{ width: 76, height: "1.4em" }} /></td>
+      <td className="fig"><span className="skel" style={{ width: 44 }} /></td>
+      <td className="fig"><span className="skel" style={{ width: 44 }} /></td>
+      <td><span className="skel" style={{ width: 24 }} /></td>
+      <td className="fig"><span className="skel" style={{ width: 72 }} /></td>
+      <td className="fig"><span className="skel" style={{ width: 40 }} /></td>
+      <td className="fig"><span className="skel" style={{ width: 12 }} /></td>
+      <td className="wide"><span className="skel" style={{ width: 92 }} /></td>
+    </tr>
+  );
 }
