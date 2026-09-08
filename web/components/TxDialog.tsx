@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Hex } from "viem";
 import { explainRevert, isRejection } from "@/lib/reverts";
 
@@ -19,6 +20,14 @@ import { explainRevert, isRejection } from "@/lib/reverts";
  * selector kept in small type for anyone reading a receipt later.
  *
  * And declining in a wallet is not a failure. It closes quietly.
+ *
+ * It also owns the moment the rest of the page is allowed to believe something
+ * changed. A wallet returns a hash the instant it signs, several seconds before
+ * the network has agreed to anything — so the callers that refetched on that
+ * were re-reading the state the transaction had not yet altered, and a repaid
+ * loan went on saying "Funded" until somebody reloaded. This is the one place
+ * that knows a receipt arrived and that it succeeded, so this is where the
+ * reads are dropped.
  */
 export default function TxDialog({
   hash,
@@ -36,6 +45,17 @@ export default function TxDialog({
   onClose?: () => void;
 }) {
   const { data: receipt, isLoading } = useWaitForTransactionReceipt({ hash });
+  const queryClient = useQueryClient();
+
+  // Every contract read on the page, refetched once — and only once the network
+  // has actually accepted the transaction. A revert changes nothing, so it is
+  // deliberately not a trigger.
+  const confirmed = receipt?.status === "success" ? receipt.transactionHash : undefined;
+  useEffect(() => {
+    if (!confirmed) return;
+    queryClient.invalidateQueries({ queryKey: ["readContract"] });
+    queryClient.invalidateQueries({ queryKey: ["readContracts"] });
+  }, [confirmed, queryClient]);
 
   const rejected = isRejection(error);
   const open = !!hash || (!!error && !rejected);
