@@ -502,3 +502,15 @@ tr.row:hover .go { opacity: 1; }
            letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .tally span { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
               color: var(--muted); }
+
+/* The prospectus, folded away. It is the document with no price — the reason
+   the project exists — so it stays on the page, but a wall of legal text
+   should not be the first thing in a card about verification. */
+.doc > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: baseline; gap: 10px;
+                 font-size: 13.5px; color: var(--ink); border-bottom: 1px solid var(--line);
+                 padding-bottom: 2px; }
+.doc > summary::-webkit-details-marker { display: none; }
+.doc > summary::before { content: "+"; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.doc[open] > summary::before { content: "–"; }
+.doc > summary:hover { border-bottom-color: var(--ink); }
+.doc > summary .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }

@@ -146,29 +146,31 @@ export default function DocumentCheck({
             <span className="v ok">{state.bytes} bytes — hash matches</span>
           </div>
           <p className="note" style={{ marginTop: 12 }}>
-            Verified in your browser: the bytes at{" "}
+            Your browser fetched{" "}
             <a href={state.uri} target="_blank" rel="noreferrer">
-              this URI
+              the file
             </a>{" "}
-            hash to exactly what the request committed to.
+            and hashed it. It is the document this loan was agreed against.
           </p>
-          <details style={{ marginTop: 14 }}>
-            <summary className="sub" style={{ cursor: "pointer" }}>
-              Read the prospectus
+          <details className="doc" style={{ marginTop: 14 }}>
+            <summary>
+              Read it <span className="n">{state.bytes} bytes</span>
             </summary>
             <pre
               style={{
                 marginTop: 12,
                 whiteSpace: "pre-wrap",
                 fontFamily: "var(--mono)",
-                fontSize: 12.5,
+                fontSize: 12,
+                lineHeight: 1.7,
                 color: "var(--ink-2)",
-                background: "var(--ground)",
+                background: "var(--wash)",
                 border: "1px solid var(--line)",
                 borderRadius: "var(--radius)",
-                padding: 14,
-                maxHeight: 320,
+                padding: 16,
+                maxHeight: 260,
                 overflow: "auto",
+                margin: "12px 0 0",
               }}
             >
               {state.text}
