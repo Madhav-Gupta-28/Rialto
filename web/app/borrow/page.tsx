@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
-import { amount, days as parseDays, seconds as parseSeconds } from "@/lib/amount";
+import { amount, term as parseTerm, seconds as parseSeconds, type TermUnit } from "@/lib/amount";
 import { maxUint256, stringToHex, type Hex } from "viem";
 import { marketAbi, securityAbi } from "@/lib/abi";
-import { MARKET, BOND, CASH, CASH_DECIMALS, BOND_DECIMALS, hashscan } from "@/lib/chain";
+import { MARKET, BOND, CASH, CASH_DECIMALS, BOND_DECIMALS, MAX_TERM_SECONDS, hashscan } from "@/lib/chain";
 import { units } from "@/lib/format";
 import TxDialog from "@/components/TxDialog";
 
@@ -20,7 +20,8 @@ export default function Borrow() {
 
   const [collateral, setCollateral] = useState("10500");
   const [principal, setPrincipal] = useState("10000");
-  const [days, setDays] = useState("30");
+  const [length, setLength] = useState("30");
+  const [unit, setUnit] = useState<TermUnit>("days");
   // Not `window`. A local of that name shadows the global inside this whole
   // component, so any later `window.matchMedia` here would read a string and
   // throw — and it would look correct on the page it was written on.
@@ -43,7 +44,7 @@ export default function Borrow() {
   // state and the argument, so they cannot drift apart.
   const c = amount(collateral, BOND_DECIMALS);
   const pr = amount(principal, CASH_DECIMALS);
-  const t = parseDays(days, 60);
+  const t = parseTerm(length, unit, MAX_TERM_SECONDS);
   const w = parseSeconds(bidWindow, 60, 604_800);
 
   const wanted = c.ok ? c.value : 0n;
@@ -120,9 +121,26 @@ export default function Borrow() {
           <div className="fieldset">
             <p className="lab">
               <span>How long</span>
+              {/* The contract takes anything from a second to sixty days. Only
+                  this form ever rounded to whole days, and that put the ending
+                  nobody sends a transaction for beyond the reach of anyone with
+                  an afternoon to spend looking at it. */}
+              <span className="units">
+                {(["days", "minutes"] as const).map((u) => (
+                  <button key={u} type="button" aria-pressed={unit === u} onClick={() => setUnit(u)}>
+                    {u}
+                  </button>
+                ))}
+              </span>
             </p>
             <div className="grid two">
-              <Field name="Loan length (days)" value={days} onChange={setDays} hint="60 maximum" problem={t.ok ? undefined : t.why} />
+              <Field
+                name={`Loan length (${unit})`}
+                value={length}
+                onChange={setLength}
+                hint={unit === "days" ? "60 days maximum" : "short enough to watch Hedera close it itself"}
+                problem={t.ok ? undefined : t.why}
+              />
               <Field name="Bidding open for (seconds)" value={bidWindow} onChange={setBidWindow} hint="60 s to 7 days" problem={w.ok ? undefined : w.why} />
             </div>
           </div>

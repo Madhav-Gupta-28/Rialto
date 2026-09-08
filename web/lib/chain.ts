@@ -42,6 +42,9 @@ export const MANDATES = "0xb4F8cB274387A5190CeF7582004558809f8547a4" as const;
 export const BOND = "0x52Ea050Fe77A303b1A61fe15d8894892aFF02114" as const;
 export const CASH = "0x55e9BAF7dCFe0e2A4E51e1BdeBB4e20d6247e365" as const;
 
+/** `RialtoMarket.MAX_TERM` — sixty days, the longest loan the market will hold. */
+export const MAX_TERM_SECONDS = 60 * 86_400;
+
 export const CASH_DECIMALS = 6;
 export const BOND_DECIMALS = 18;
 

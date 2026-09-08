@@ -608,3 +608,14 @@ tr.row:focus-visible { outline-offset: -2px; }
    not a headline over an expanse of nothing. */
 .hero { display: grid; grid-template-columns: 1fr auto; gap: 72px; align-items: center; }
 @media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 40px } }
+
+/* A unit chosen rather than assumed.
+   Sits in the right of a fieldset label, where the cover ratio sits on the one
+   above it — so the eye already goes there. Ink and paper only: the chosen one
+   is filled, the other is just text. */
+.units { display: inline-flex; gap: 3px; }
+.units button { font: inherit; font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+                text-transform: uppercase; background: none; border: 1px solid transparent;
+                border-radius: 3px; padding: 2px 8px; color: var(--muted); cursor: pointer; }
+.units button:hover { color: var(--ink); }
+.units button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }

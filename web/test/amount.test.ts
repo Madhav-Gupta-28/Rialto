@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { amount, days, seconds, basisPoints } from "../lib/amount";
+import { amount, days, seconds, basisPoints, term as parseTerm } from "../lib/amount";
 
 describe("amount", () => {
   it("parses exactly, without a float anywhere", () => {
@@ -61,5 +61,57 @@ describe("basisPoints", () => {
     expect(basisPoints("65535").ok).toBe(true);
     expect(basisPoints("65536").ok).toBe(false);
     expect(basisPoints("5.5").ok).toBe(false);
+  });
+});
+
+describe("term", () => {
+  const MAX = 60 * 86_400; // RialtoMarket.MAX_TERM
+
+  it("reads a length in either unit", () => {
+    expect(parseTerm("30", "days", MAX)).toEqual({ ok: true, value: 2_592_000n });
+    expect(parseTerm("1", "days", MAX)).toEqual({ ok: true, value: 86_400n });
+    expect(parseTerm("12", "minutes", MAX)).toEqual({ ok: true, value: 720n });
+    expect(parseTerm("1", "minutes", MAX)).toEqual({ ok: true, value: 60n });
+  });
+
+  it("reaches the short terms the browser could not open before", () => {
+    // 720 seconds is the loan that let the network close one unattended while
+    // somebody watched. The form used to round everything to whole days, so
+    // this was only reachable from a terminal.
+    expect(parseTerm("12", "minutes", MAX).ok).toBe(true);
+  });
+
+  it("holds the contract's own ceiling, whichever unit you say it in", () => {
+    expect(parseTerm("60", "days", MAX)).toEqual({ ok: true, value: 5_184_000n });
+    expect(parseTerm("86400", "minutes", MAX)).toEqual({ ok: true, value: 5_184_000n });
+    expect(parseTerm("61", "days", MAX).ok).toBe(false);
+    expect(parseTerm("86401", "minutes", MAX).ok).toBe(false);
+  });
+
+  it("says the limit in the unit that was typed", () => {
+    const d = parseTerm("61", "days", MAX);
+    expect(d.ok === false && d.why).toBe("at most 60 days");
+    const m = parseTerm("999999", "minutes", MAX);
+    expect(m.ok === false && m.why).toBe("at most 86,400 minutes");
+  });
+
+  it("refuses a term the contract would revert on", () => {
+    // `term == 0` is BadTerm(), so it must never reach the wallet.
+    expect(parseTerm("0", "minutes", MAX).ok).toBe(false);
+    expect(parseTerm("0", "days", MAX).ok).toBe(false);
+  });
+
+  it("refuses what is not a whole number of them", () => {
+    expect(parseTerm("1.5", "days", MAX).ok).toBe(false);
+    expect(parseTerm("-1", "minutes", MAX).ok).toBe(false);
+    expect(parseTerm("", "days", MAX).ok).toBe(false);
+    expect(parseTerm("abc", "days", MAX).ok).toBe(false);
+  });
+
+  it("rejects an enormous number without losing precision on the way", () => {
+    // Multiplying first would overflow a double; the comparison happens in the
+    // chosen unit for exactly this reason.
+    expect(parseTerm("9".repeat(30), "days", MAX).ok).toBe(false);
+    expect(parseTerm(String(Number.MAX_SAFE_INTEGER), "minutes", MAX).ok).toBe(false);
   });
 });
