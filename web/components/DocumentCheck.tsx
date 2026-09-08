@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { keccak256, type Hex } from "viem";
 import { useReadContract } from "wagmi";
 import { securityAbi } from "@/lib/abi";
+import { documentUri } from "@/lib/uri";
 import Copy from "./Copy";
 
 /** An offering document is prose. Anything larger is not one. */
@@ -12,6 +13,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 type State =
   | { k: "loading" }
   | { k: "none" }
+  | { k: "refused"; raw: string; why: string }
   | { k: "unreachable"; detail: string }
   | { k: "mismatch"; got: Hex; uri: string }
   | { k: "ok"; uri: string; bytes: number; text: string };
@@ -24,6 +26,10 @@ type State =
  * froze at `open` — not whatever the security says today — which is why
  * replacing the document mid-auction shows up as a mismatch rather than moving
  * a bid.
+ *
+ * The address is the issuer's to choose, so it is checked before it is either
+ * fetched or linked: see lib/uri. A refused scheme is reported as a document
+ * that could not be checked, never as one that passed.
  */
 export default function DocumentCheck({
   collateral,
@@ -44,13 +50,20 @@ export default function DocumentCheck({
   });
 
   const [state, setState] = useState<State>({ k: "loading" });
-  const uri = doc?.[0];
+  const raw = doc?.[0];
+  const safe = raw === undefined ? undefined : documentUri(raw);
+  const uri = safe?.ok ? safe.url : undefined;
 
   useEffect(() => {
     let live = true;
-    if (uri === undefined) return;
-    if (!uri) {
+    if (raw === undefined) return;
+    if (raw.trim() === "") {
       setState({ k: "none" });
+      return;
+    }
+    if (!uri) {
+      const why = safe && !safe.ok ? safe.why : "not an address this page will open";
+      setState({ k: "refused", raw, why });
       return;
     }
 
@@ -95,7 +108,10 @@ export default function DocumentCheck({
       abort.abort();
       clearTimeout(timer);
     };
-  }, [uri, frozenHash]);
+    // `safe` is derived from `raw` on every render, so `raw` is the dependency
+    // that actually changes; listing the object would rerun this each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raw, uri, frozenHash]);
 
   return (
     <div className="card">
@@ -115,6 +131,22 @@ export default function DocumentCheck({
       {state.k === "loading" && <p className="sub" style={{ marginTop: 14 }}>Fetching and hashing…</p>}
 
       {state.k === "none" && <p className="sub" style={{ marginTop: 14 }}>No document under that name.</p>}
+
+      {state.k === "refused" && (
+        <div style={{ marginTop: 14 }}>
+          <p className="err">Refused: {state.why}.</p>
+          <p className="note" style={{ marginTop: 12 }}>
+            The security points its document at{" "}
+            <code style={{ fontFamily: "var(--mono)", wordBreak: "break-all" }}>
+              {state.raw.length > 120 ? `${state.raw.slice(0, 120)}…` : state.raw}
+            </code>
+            . Rialto fetches and links documents over http and https only — anything else would be
+            running the issuer&rsquo;s choice of code or reaching into your own machine, in a page
+            where your wallet is already connected. It is shown, not opened. An underwriter that
+            cannot verify a document should not bid.
+          </p>
+        </div>
+      )}
 
       {state.k === "unreachable" && (
         <p className="err" style={{ marginTop: 14 }}>
