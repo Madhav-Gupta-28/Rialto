@@ -6,7 +6,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {Mandates} from "../../src/Mandates.sol";
 import {RialtoMarket} from "../../src/RialtoMarket.sol";
-import {Status, Request} from "../../src/RialtoTypes.sol";
+import {Request} from "../../src/RialtoTypes.sol";
 import {MockERC20, MockSecurity} from "../mocks/Tokens.sol";
 
 /**

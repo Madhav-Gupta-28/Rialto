@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {Base} from "./Base.t.sol";
-import {Mandates} from "../src/Mandates.sol";
 import {RialtoMarket} from "../src/RialtoMarket.sol";
 import {Status, Request} from "../src/RialtoTypes.sol";
 import {MockHSS} from "./mocks/MockHSS.sol";

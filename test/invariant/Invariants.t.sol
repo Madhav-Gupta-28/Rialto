@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 import {Mandates} from "../../src/Mandates.sol";
 import {RialtoMarket} from "../../src/RialtoMarket.sol";
-import {Status, Request, Bid} from "../../src/RialtoTypes.sol";
+import {Status, Request} from "../../src/RialtoTypes.sol";
 import {MockERC20, MockSecurity} from "../mocks/Tokens.sol";
 import {Handler} from "./Handler.sol";
 

@@ -5,7 +5,6 @@ import {Base} from "./Base.t.sol";
 import {RialtoMarket} from "../src/RialtoMarket.sol";
 import {Mandates} from "../src/Mandates.sol";
 import {Status} from "../src/RialtoTypes.sol";
-import {MockERC20} from "./mocks/Tokens.sol";
 
 /// Attempts to break the market, written as attacks rather than as checks.
 contract AuditTest is Base {

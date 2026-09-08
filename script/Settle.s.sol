@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {RialtoMarket} from "../src/RialtoMarket.sol";
-import {Status, Request, Bid} from "../src/RialtoTypes.sol";
+import {Status, Request} from "../src/RialtoTypes.sol";
 import {IATSSecurity} from "../src/interfaces/IATS.sol";
 import {DemoCash} from "../src/demo/DemoCash.sol";
 

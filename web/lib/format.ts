@@ -22,15 +22,6 @@ export function units(v: bigint, decimals: number, dp = 2): string {
   return `${neg ? "-" : ""}${w}${fracStr ? "." + fracStr : ""}`;
 }
 
-/** Decimal string -> raw units, without ever routing through a float. */
-export function parseUnits(value: string, decimals: number): bigint {
-  const t = value.trim();
-  if (!/^\d+(\.\d+)?$/.test(t)) throw new Error(`not a positive amount: "${value}"`);
-  const [whole, frac = ""] = t.split(".");
-  if (frac.length > decimals) throw new Error(`more than ${decimals} decimal places`);
-  return BigInt(whole + frac.padEnd(decimals, "0"));
-}
-
 export const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 
 export function duration(seconds: number | bigint): string {

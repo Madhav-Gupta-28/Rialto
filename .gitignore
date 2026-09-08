@@ -1,7 +1,11 @@
 cache/
 out/
-broadcast/*/dry-run/
-node_modules/
+# Foundry's own record of what a script sent. Not the project's record: it is
+# rewritten by every run, so `run-latest.json` names whichever contract was
+# deployed last rather than the one that is live — ours pointed at a market
+# that appears nowhere else in the repository. DEPLOYMENTS.md is the record,
+# and every address in it was read back off the chain.
+broadcast/
 .env
 .env.*
 !.env.example

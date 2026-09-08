@@ -29,7 +29,7 @@ export const MAX_EVIDENCE_CHARS = 120_000;
  * message and logged once per poll, that buries everything the agent did, which
  * is the same failure the viem errors had in the poll loop.
  */
-export function oneLine(s: string): string {
+function oneLine(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 

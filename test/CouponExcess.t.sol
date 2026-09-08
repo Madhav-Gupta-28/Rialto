@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {Base} from "./Base.t.sol";
-import {RialtoMarket} from "../src/RialtoMarket.sol";
 import {Status} from "../src/RialtoTypes.sol";
 
 /**

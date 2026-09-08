@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {Mandates} from "../src/Mandates.sol";
 import {RialtoMarket} from "../src/RialtoMarket.sol";
-import {Status, Request, Bid} from "../src/RialtoTypes.sol";
+import {Status} from "../src/RialtoTypes.sol";
 import {MockERC20, MockSecurity} from "./mocks/Tokens.sol";
 import {MockHSS} from "./mocks/MockHSS.sol";
 

@@ -51,9 +51,11 @@ export default function DocumentCheck({
 
   const [state, setState] = useState<State>({ k: "loading" });
   const raw = doc?.[0];
-  const safe = raw === undefined ? undefined : documentUri(raw);
-  const uri = safe?.ok ? safe.url : undefined;
 
+  // The address is checked inside the effect rather than beside it. `documentUri`
+  // is pure, so deriving it here keeps the effect's dependencies down to the two
+  // values that can actually change — a fresh object on every render would
+  // otherwise refetch the document each time the component re-rendered.
   useEffect(() => {
     let live = true;
     if (raw === undefined) return;
@@ -61,11 +63,13 @@ export default function DocumentCheck({
       setState({ k: "none" });
       return;
     }
-    if (!uri) {
-      const why = safe && !safe.ok ? safe.why : "not an address this page will open";
-      setState({ k: "refused", raw, why });
+
+    const safe = documentUri(raw);
+    if (!safe.ok) {
+      setState({ k: "refused", raw, why: safe.why });
       return;
     }
+    const uri = safe.url;
 
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 15_000);
@@ -108,10 +112,7 @@ export default function DocumentCheck({
       abort.abort();
       clearTimeout(timer);
     };
-    // `safe` is derived from `raw` on every render, so `raw` is the dependency
-    // that actually changes; listing the object would rerun this each time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raw, uri, frozenHash]);
+  }, [raw, frozenHash]);
 
   return (
     <div className="card">
