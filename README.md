@@ -43,40 +43,50 @@ Three Hedera services make that safe to do without trusting anybody:
 
 ## How it works
 
-One loan, from the issuer's document to the ending the network runs by itself. Purple is Asset Tokenization Studio, **orange is our code**, **blue is Hedera doing something nobody asked it to do twice**.
+One loan, from the issuer's document to the ending the network runs by itself. **Indigo is Asset Tokenization Studio, slate is our code, blue is Hedera acting on its own.**
 
 ```mermaid
+---
+config:
+  flowchart:
+    nodeSpacing: 28
+    rankSpacing: 34
+    padding: 6
+    useMaxWidth: true
+  themeVariables:
+    fontSize: 12px
+---
 flowchart TD
-    ISS(["🧾 <b>Issuer</b> publishes the offering document<br/><i>ATS · ERC-1643</i>"]):::ats
+    ISS(["🧾 <b>Issuer</b> publishes the offering document · <i>ATS ERC-1643</i>"]):::ats
     ISS --> OPEN
-    OPEN["<b>open()</b> — bond into escrow<br/>the document's hash is frozen into the request"]:::rialto
+    OPEN["<b>open()</b> — bond into escrow, document hash frozen"]:::rialto
     OPEN --> READ
     READ["<b>Underwriters price it</b> — human or AI agent<br/>fetch the document · re-hash it"]:::actor
     READ --> CHK
-    CHK{"does it still match<br/>the frozen hash?"}:::actor
-    CHK -->|"no"| STOP["🚫 do not bid"]:::bad
-    CHK -->|"yes"| HCS
-    HCS["📡 <b>publish the opinion first</b><br/><i>Consensus Service · topic 0.0.10367534</i>"]:::hedera
+    CHK{"still matches the<br/>frozen hash?"}:::actor
+    CHK -->|no| STOP["🚫 do not bid"]:::bad
+    CHK -->|yes| HCS
+    HCS["📡 <b>publish the opinion first</b><br/><i>HCS · topic 0.0.10367534</i>"]:::hedera
     HCS --> BID
-    BID["<b>bid(repayment, reasoningRef)</b><br/>carries the hash of that opinion"]:::rialto
+    BID["<b>bid(repayment, reasoningRef)</b> — carries that opinion's hash"]:::rialto
     BID --> MAND
-    MAND["<b>Mandates</b> — inside the underwriter's<br/>own on-chain limits?"]:::rialto
-    MAND -->|"no"| REJ["🚫 refused"]:::bad
-    MAND -->|"yes · lowest repayment wins"| AWARD
-    AWARD["<b>award()</b> — cash moves lender → borrower<br/>never rests in the contract"]:::rialto
+    MAND["<b>Mandates</b> — inside the underwriter's own on-chain limits?"]:::rialto
+    MAND -->|no| REJ["🚫 refused"]:::bad
+    MAND -->|"yes · lowest wins"| AWARD
+    AWARD["<b>award()</b> — cash moves lender → borrower, never rests here"]:::rialto
     AWARD --> BOOK
-    BOOK["⏱️ <b>the ending is booked now</b><br/><i>Schedule Service · HIP-1215</i><br/>claim(id) at maturity + 60s · the contract pays"]:::hedera
+    BOOK["⏱️ <b>the ending is booked now</b><br/><i>HIP-1215 · claim(id) at maturity + 60s, the contract pays</i>"]:::hedera
     BOOK --> Q
     Q{"repaid in time?"}:::actor
-    Q -->|"yes"| REPAY["✅ <b>bond goes home</b><br/>the booking is released, unused"]:::good
-    Q -->|"no · nobody lifts a finger"| AUTO["🔔 <b>Hedera runs claim(id) itself</b><br/>bond to the lender"]:::good
+    Q -->|yes| REPAY["✅ <b>bond goes home</b> — booking released, unused"]:::good
+    Q -->|"no · nobody acts"| AUTO["🔔 <b>Hedera runs claim(id) itself</b> — bond to the lender"]:::good
 
-    classDef rialto fill:#B45309,stroke:#78350F,color:#FFFFFF
-    classDef hedera fill:#1D4ED8,stroke:#1E3A8A,color:#FFFFFF
-    classDef ats fill:#6D28D9,stroke:#4C1D95,color:#FFFFFF
-    classDef good fill:#15803D,stroke:#14532D,color:#FFFFFF
-    classDef bad fill:#B91C1C,stroke:#7F1D1D,color:#FFFFFF
-    classDef actor fill:#F5F5F4,stroke:#57534E,color:#1C1917
+    classDef rialto fill:#334155,stroke:#1E293B,color:#F8FAFC
+    classDef hedera fill:#2563EB,stroke:#1E40AF,color:#FFFFFF
+    classDef ats fill:#4F46E5,stroke:#3730A3,color:#FFFFFF
+    classDef good fill:#059669,stroke:#047857,color:#FFFFFF
+    classDef bad fill:#BE123C,stroke:#9F1239,color:#FFFFFF
+    classDef actor fill:#F1F5F9,stroke:#94A3B8,color:#334155
 ```
 
 - **Frozen document** — the hash is locked at `open`. Swap the file mid-auction and the bid refuses, rather than silently repricing.
@@ -152,23 +162,33 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/schedules?account.id=0.0.1
 ## Architecture
 
 ```mermaid
+---
+config:
+  flowchart:
+    nodeSpacing: 34
+    rankSpacing: 70
+    padding: 8
+    useMaxWidth: true
+  themeVariables:
+    fontSize: 12px
+---
 flowchart LR
     subgraph anyone["Anyone can act"]
-        UI["🌐 <b>Front end</b><br/>reads the chain directly<br/>no server · no indexer"]:::actor
-        AG["🤖 <b>Underwriting agent</b><br/>reads the document<br/>bids under a mandate"]:::actor
+        UI["🌐 <b>Front end</b><br/>reads the chain directly"]:::actor
+        AG["🤖 <b>Agent</b><br/>bids under a mandate"]:::actor
     end
 
     subgraph rialto["Rialto · our contracts"]
-        MK["<b>RialtoMarket</b><br/>escrow · auction · settlement"]:::rialto
-        MD["<b>Mandates</b><br/>an underwriter's limits"]:::rialto
-        CL["<b>ComplianceLens</b><br/>names the blocker"]:::rialto
+        MK["<b>RialtoMarket</b><br/>escrow · sealed auction<br/>settlement · coupon netting"]:::rialto
+        MD["<b>Mandates</b><br/>per-deal · total exposure<br/>rate floor · allowed assets"]:::rialto
+        CL["<b>ComplianceLens</b><br/>read-only<br/>names which control blocks"]:::rialto
     end
 
     subgraph hedera["Hedera does the rest"]
-        ATS["<b>ATS</b> · RDN27<br/>ERC-3643 · ERC-1643 · coupons"]:::hedera
-        HCS["<b>Consensus Service</b><br/>every opinion, before its bid"]:::hedera
-        HSS["<b>Schedule Service</b><br/>HIP-1215 · closes the loan"]:::hedera
-        MN["<b>Mirror Node</b><br/>the whole audit, public"]:::hedera
+        HSS["<b>Schedule Service</b><br/>HIP-1215<br/>closes the loan itself"]:::hedera
+        ATS["<b>ATS</b> · RDN27<br/>ERC-3643 · ERC-1643<br/>corporate actions"]:::hedera
+        HCS["<b>Consensus Service</b><br/>every opinion<br/>timestamped before its bid"]:::hedera
+        MN["<b>Mirror Node</b><br/>schedules · receipts · messages<br/>the whole audit, public"]:::hedera
     end
 
     UI -->|"open · bid · award · repay"| MK
@@ -182,12 +202,12 @@ flowchart LR
     CL -.-> ATS
     UI -.-> MN
 
-    classDef rialto fill:#B45309,stroke:#78350F,color:#FFFFFF
-    classDef hedera fill:#1D4ED8,stroke:#1E3A8A,color:#FFFFFF
-    classDef actor fill:#F5F5F4,stroke:#57534E,color:#1C1917
-    style anyone fill:#FAFAF9,stroke:#A8A29E,color:#44403C
-    style rialto fill:#FEF3C7,stroke:#B45309,color:#78350F
-    style hedera fill:#DBEAFE,stroke:#1D4ED8,color:#1E3A8A
+    classDef rialto fill:#334155,stroke:#1E293B,color:#F8FAFC
+    classDef hedera fill:#2563EB,stroke:#1E40AF,color:#FFFFFF
+    classDef actor fill:#F1F5F9,stroke:#94A3B8,color:#334155
+    style anyone fill:#F8FAFC,stroke:#CBD5E1,color:#475569
+    style rialto fill:#F1F5F9,stroke:#94A3B8,color:#334155
+    style hedera fill:#EFF6FF,stroke:#93C5FD,color:#1E40AF
 ```
 
 The agent is optional. Its limits live in `Mandates`, on chain — so a stolen agent key still can't exceed them, and a human bidding by hand passes the identical checks.
