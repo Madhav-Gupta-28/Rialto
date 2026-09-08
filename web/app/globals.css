@@ -588,16 +588,18 @@ tr.row:focus-visible { outline-offset: -2px; }
                  font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
                  text-transform: uppercase; color: var(--muted); flex-wrap: wrap; }
 .receipt .line, .receipt .total {
-  display: grid; grid-template-columns: 8.5rem 1fr auto; gap: 18px; align-items: baseline;
+  display: grid; grid-template-columns: 9.5rem 1fr auto; gap: 20px; align-items: baseline;
   padding: 15px 22px; border-bottom: 1px solid var(--line-soft);
   transition: opacity .5s ease, transform .5s ease;
 }
 .receipt .line .k, .receipt .total .k { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.receipt .line .v { font-family: var(--mono); font-size: 17px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.receipt .line .v { font-family: var(--mono); font-size: 17px; color: var(--ink);
+                    font-variant-numeric: tabular-nums; white-space: nowrap; }
+.receipt .line .v i { font-style: normal; font-size: 12px; color: var(--muted); margin-left: 2px; }
 .receipt .line .n, .receipt .total .n { font-size: 13px; color: var(--muted); text-align: right; }
 .receipt .total { border-bottom: none; border-top: 1px solid var(--ink); background: var(--wash);
                   transition: opacity .7s ease .2s; }
-.receipt .total .v { font-family: var(--mono); font-size: 21px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.receipt .total .v { font-family: var(--sans); font-size: 19px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 @media (max-width: 620px) {
   .receipt .line, .receipt .total { grid-template-columns: 1fr auto; row-gap: 4px }
   .receipt .line .n, .receipt .total .n { grid-column: 1 / -1; text-align: left }

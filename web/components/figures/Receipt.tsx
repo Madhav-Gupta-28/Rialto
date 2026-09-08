@@ -10,16 +10,22 @@ import { useEffect, useRef, useState } from "react";
  * in a judging deck. This is the loan itself, written the way a receipt is:
  * four lines that assemble, and a fifth that is the whole point.
  *
- * Every figure is real, and they reconcile. Request #12 on the live market:
- * 2,000 borrowed, 2,028.774951 repaid, 28.767123 of coupon income handed back —
- * which leaves 0.007828, the interest on a thirty-minute loan and nothing else.
+ * Every figure is real — request #12 on the live market — and shown to two
+ * places, because six decimal places on a round number is noise rather than
+ * precision. The exact figures are on the request page for anyone who wants
+ * them.
+ *
+ * The last line is deliberately not a subtraction. Rounded to two places the
+ * arithmetic lands on 0.00 rather than the true 0.007828, so a reader checking
+ * it would watch it fail. What that line is actually for is the thing nobody
+ * expects anyway: the bond never stopped being theirs.
  */
 
 const LINES = [
-  { k: "you locked", v: "2,100 RDN27", n: "your bond, into escrow" },
-  { k: "you borrowed", v: "2,000.000000", n: "from whoever bid lowest" },
-  { k: "you repaid", v: "2,028.774951", n: "on the day it was due" },
-  { k: "the bond paid you", v: "28.767123", n: "income earned while it was locked" },
+  { k: "you locked", v: "2,100", u: "RDN27", n: "your bond, into escrow" },
+  { k: "you borrowed", v: "2,000", u: "dUSD", n: "from whoever bid lowest" },
+  { k: "you repaid", v: "2,028.77", u: "dUSD", n: "on the day it was due" },
+  { k: "the bond paid you", v: "28.77", u: "dUSD", n: "income while it was locked" },
 ];
 
 export default function Receipt() {
@@ -64,15 +70,17 @@ export default function Receipt() {
           style={{ opacity: n > i ? 1 : 0, transform: n > i ? "none" : "translateY(5px)" }}
         >
           <span className="k">{l.k}</span>
-          <span className="v">{l.v}</span>
+          <span className="v">
+            {l.v} <i>{l.u}</i>
+          </span>
           <span className="n">{l.n}</span>
         </div>
       ))}
 
       <div className="total" style={{ opacity: n > 4 ? 1 : 0 }}>
-        <span className="k">it cost you</span>
-        <span className="v">0.007828 dUSD</span>
-        <span className="n">the interest, and nothing else</span>
+        <span className="k">and</span>
+        <span className="v">you kept the bond</span>
+        <span className="n">the loan cost you under a cent</span>
       </div>
     </div>
   );
