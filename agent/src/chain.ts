@@ -286,7 +286,12 @@ export async function submitBid(c: Chain, id: bigint, repayAmount: bigint, reaso
   });
 
   const receipt = await c.pub.waitForTransactionReceipt({ hash });
-  if (receipt.status !== "success") throw new Error(`bid reverted on chain: ${hash}`);
+  if (receipt.status !== "success") {
+    // Marked, so the caller can tell a rule the market applied from a bad
+    // minute on the network. A revert will happen again on the next poll; a
+    // dropped connection will not, and the two deserve opposite responses.
+    throw Object.assign(new Error(`bid reverted on chain: ${hash}`), { reverted: true });
+  }
   return hash;
 }
 

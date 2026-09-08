@@ -13,6 +13,7 @@ import { formOpinion, RuleBasedReasoner } from "./reason.js";
 import { ClaudeReasoner } from "./claude.js";
 import { GeminiReasoner } from "./gemini.js";
 import { HcsPublisher, LocalPublisher, type Publisher, type ReasoningRecord } from "./hcs.js";
+import { isRevert, refusalIn } from "./refusals.js";
 
 const log = (...a: unknown[]) => console.log(...a);
 
@@ -246,8 +247,29 @@ export async function considerRequest(
   const published = await pub.publish(record);
   log(`  #${id} reasoning published — ref ${published.ref.slice(0, 18)}… seq ${published.sequenceNumber}`);
 
-  const tx = await submitBid(c, id, repayAmount, published.ref);
-  return settled(`#${id} bid ${repayAmount} at ${rate}bps — ${tx}`);
+  // A refused bid is an answer, not a crash. Letting it throw sent it to the
+  // loop's outer handler, which cannot tell which request it came from and so
+  // could not stop reconsidering that one — and the next poll paid for another
+  // model call and another consensus message to be refused the same way. See
+  // refusals.ts; both requests in the 8 September run did exactly this.
+  try {
+    const tx = await submitBid(c, id, repayAmount, published.ref);
+    return settled(`#${id} bid ${repayAmount} at ${rate}bps — ${tx}`);
+  } catch (e) {
+    const refusal = refusalIn(e);
+    if (refusal) {
+      const line = `#${id} refused — ${refusal.says} (${refusal.selector})`;
+      return refusal.reconsider ? backOff(line) : settled(line);
+    }
+
+    // A revert we cannot name still reverted, and will revert again in five
+    // seconds for the same reason. Back off rather than rethrow: rethrowing is
+    // what left the request unmarked and paid for a fresh opinion every poll.
+    // Anything that is not a revert — a dropped socket, a bad gateway — is
+    // worth retrying immediately and is left to the loop.
+    if (isRevert(e)) return backOff(`#${id} refused, and the reason is not one this agent knows: ${brief(e)}`);
+    throw e;
+  }
 }
 
 async function main(): Promise<void> {
