@@ -1,7 +1,29 @@
 import type { Metadata } from "next";
+import { Instrument_Serif } from "next/font/google";
 import Providers from "./providers";
 import Nav from "@/components/Nav";
 import "./globals.css";
+
+/**
+ * The one typeface, served from Rialto's own origin.
+ *
+ * It used to be two preconnects and a blocking stylesheet to fonts.googleapis,
+ * which is a third-party round trip in front of the first paint and a request
+ * to Google from the browser of everybody who opens the page. Next fetches the
+ * file at build time and serves it from here, so neither happens.
+ */
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  display: "swap",
+  // Its own variable, not --serif. next/font puts its declaration on a class,
+  // and a class and `:root` carry the same specificity — so the two would have
+  // been decided by whichever stylesheet Next happened to emit second. This
+  // way globals.css reads it rather than races it.
+  variable: "--font-serif",
+  fallback: ["Georgia", "Times New Roman", "serif"],
+});
 
 export const metadata: Metadata = {
   title: "Rialto — underwriting market for tokenized securities",
@@ -11,15 +33,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={serif.variable}>
       <body>
         <Providers>
           <Nav />

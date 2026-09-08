@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- The masthead, at tab size. Ink ground rather than paper: at sixteen
+       pixels beside a dozen other tabs, a light square reads as nothing at all,
+       and the mark on this site is the serif R with its full stop. -->
+  <rect width="64" height="64" rx="8" fill="#14130f"/>
+  <text x="32" y="47" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', 'Instrument Serif', serif"
+        font-size="44" fill="#f4f2ed">R<tspan dx="-1">.</tspan></text>
+</svg>

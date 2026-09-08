@@ -39,7 +39,10 @@
   --radius: 4px;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  /* next/font self-hosts the face and hands it over as --font-serif. The
+     literal name is the fallback inside var(), so this resolves to a serif
+     whether the font loads, fails, or is removed from the layout entirely. */
+  --serif: var(--font-serif, "Instrument Serif"), Georgia, "Times New Roman", serif;
 }
 
 * { box-sizing: border-box; }
