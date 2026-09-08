@@ -68,3 +68,28 @@ describe("rateLabel", () => {
     expect(rateLabel(999999)).toBe("over 655%");
   });
 });
+
+import { hashscan, hashscanAccount, hashscanSchedule } from "../lib/chain";
+
+describe("hashscan links", () => {
+  /**
+   * Every address on the request page was linked as a contract, so a borrower
+   * — which is an account — produced a confident "contract not found" page.
+   */
+  it("sends a wallet to the account route", () => {
+    expect(hashscanAccount("0x65AE01F68296d834DAaac4d331154f01599814cA")).toBe(
+      "https://hashscan.io/testnet/account/0x65AE01F68296d834DAaac4d331154f01599814cA",
+    );
+  });
+
+  it("sends a contract to the contract route", () => {
+    expect(hashscan("0x9040986Da679d00F0AA93ca21E1c9Aa2143121a4")).toContain("/contract/");
+  });
+
+  /** A Hedera entity's long-zero address carries its number in the low bits. */
+  it("turns a schedule's long-zero address into its entity id", () => {
+    expect(hashscanSchedule("0x00000000000000000000000000000000009eD0e1")).toBe(
+      "https://hashscan.io/testnet/schedule/0.0.10408161",
+    );
+  });
+});

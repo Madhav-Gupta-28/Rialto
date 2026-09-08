@@ -25,4 +25,19 @@ export const BOND_DECIMALS = 18;
 export const HCS_TOPIC = "0.0.10367534" as const;
 export const MIRROR = "https://testnet.mirrornode.hedera.com/api/v1";
 
-export const hashscan = (addr: string) => `https://hashscan.io/testnet/contract/${addr}`;
+const SCAN = "https://hashscan.io/testnet";
+
+/**
+ * HashScan keeps a separate route per entity kind, and sending an address to
+ * the wrong one produces a confident "not found" rather than a redirect. A
+ * borrower is an account, the market is a contract, and a booked settlement is
+ * a schedule — three different pages.
+ */
+export const hashscan = (addr: string) => `${SCAN}/contract/${addr}`;
+export const hashscanAccount = (addr: string) => `${SCAN}/account/${addr}`;
+
+/**
+ * A Hedera entity reached through the EVM wears a long-zero address whose low
+ * bits are its entity number, so a schedule at 0x…9eD0e1 is 0.0.10408161.
+ */
+export const hashscanSchedule = (addr: string) => `${SCAN}/schedule/0.0.${BigInt(addr).toString()}`;

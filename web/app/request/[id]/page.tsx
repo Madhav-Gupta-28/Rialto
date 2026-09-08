@@ -8,7 +8,7 @@ import { amount } from "@/lib/amount";
 import { maxUint256, type Hex } from "viem";
 import { marketAbi, securityAbi, couponMarketAbi, mandatesAbi } from "@/lib/abi";
 import { lensAbi, explain, type Obstacle } from "@/lib/lens";
-import { MARKET, MANDATES, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan } from "@/lib/chain";
+import { MARKET, MANDATES, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan, hashscanAccount, hashscanSchedule } from "@/lib/chain";
 import { units, duration, bps, rateLabel, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
@@ -161,7 +161,7 @@ export default function RequestPage() {
                   <p className="lede" style={{ fontSize: 14, marginBottom: 14 }}>
                     Hedera closes this loan itself at maturity. Nobody has to be watching.
                   </p>
-                  <Addr k="Booked with the network" at={String(schedule)} />
+                  <Addr k="Booked with the network" at={String(schedule)} kind="schedule" />
                 </div>
               )}
             </div>
@@ -226,16 +226,33 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-/** An address is the one value on this page somebody wants to take away. */
-function Addr({ k, at, note }: { k: string; at: string; note?: string }) {
+/**
+ * An address is the one value on this page somebody wants to take away — so it
+ * copies in full, and links to the right HashScan page for what it actually is.
+ * A wallet sent to the contract route comes back "not found".
+ */
+function Addr({
+  k,
+  at,
+  note,
+  kind = "account",
+}: {
+  k: string;
+  at: string;
+  note?: string;
+  kind?: "account" | "contract" | "schedule";
+}) {
+  const href =
+    kind === "contract" ? hashscan(at) : kind === "schedule" ? hashscanSchedule(at) : hashscanAccount(at);
+  const label = kind === "schedule" ? `0.0.${BigInt(at).toString()}` : short(at);
   return (
     <Row
       k={k}
       v={
         <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
-          <Copy value={at} label={short(at)} />
+          <Copy value={kind === "schedule" ? `0.0.${BigInt(at).toString()}` : at} label={label} />
           {note && <span className="sub" style={{ fontSize: 12 }}>{note}</span>}
-          <a href={hashscan(at)} target="_blank" rel="noreferrer"
+          <a href={href} target="_blank" rel="noreferrer"
              style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>↗</a>
         </span>
       }

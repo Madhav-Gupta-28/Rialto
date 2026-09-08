@@ -5,7 +5,7 @@ import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { amount, days as parseDays, basisPoints } from "@/lib/amount";
 import { marketAbi, mandatesAbi } from "@/lib/abi";
-import { MANDATES, MARKET, BOND, CASH_DECIMALS, hashscan } from "@/lib/chain";
+import { MANDATES, MARKET, BOND, CASH_DECIMALS, hashscan, hashscanAccount } from "@/lib/chain";
 import { units, short, duration, bps } from "@/lib/format";
 import TxDialog from "@/components/TxDialog";
 import Copy from "@/components/Copy";
@@ -118,7 +118,7 @@ export default function MandatePage() {
                         ) : (
                           <span style={{ display: "inline-flex", alignItems: "baseline", gap: 12 }}>
                             <Copy value={mandate!.agent} label={short(mandate!.agent)} />
-                            <a href={hashscan(mandate!.agent)} target="_blank" rel="noreferrer"
+                            <a href={hashscanAccount(mandate!.agent)} target="_blank" rel="noreferrer"
                                style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
                               ↗
                             </a>
