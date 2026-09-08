@@ -119,7 +119,7 @@ export default function ManufacturedPayment({
 
   return (
     <div className="card">
-      <p className="eyebrow">Income while pledged</p>
+      <p className="eyebrow">Income while locked</p>
 
       {nothingToShow ? (
         <p className="sub">
@@ -129,9 +129,8 @@ export default function ManufacturedPayment({
       ) : (
         <>
           <p className="lede" style={{ fontSize: 14, marginBottom: 16 }}>
-            While this loan is live the escrow is the holder of record, so the security credits{" "}
-            <em>it</em> rather than the borrower. Under a repo the collateral taker owes that income
-            back, and it is netted off the repayment rather than wired separately.
+            The bond pays whoever holds it, and right now that is the escrow. Rialto hands that income
+            back to the borrower by taking it off the repayment.
           </p>
 
           {inTerm.length > 0 && (
@@ -171,9 +170,8 @@ export default function ManufacturedPayment({
                 </div>
               ))}
               <p className="hint" style={{ marginTop: 10 }}>
-                Handing a coupon to the network books a scheduled call for its record date, so
-                nobody has to be watching. Recording it by hand does the same thing afterwards, and
-                anyone may — the answer is fixed by the security&rsquo;s own snapshot.
+                Hand it to the network and Hedera records it on the day. Anyone can record it by hand
+                afterwards — the amount comes from the bond, not from whoever presses the button.
               </p>
             </div>
           )}
@@ -182,11 +180,11 @@ export default function ManufacturedPayment({
             <>
               <div className="ledger">
                 <div className="ledger-row">
-                  <span>Agreed repayment</span>
+                  <span>Agreed at auction</span>
                   <span className="figure">{units(agreed, CASH_DECIMALS)}</span>
                 </div>
                 <div className="ledger-row">
-                  <span>Coupon owed to the borrower</span>
+                  <span>Income owed back to you</span>
                   <span className="figure minus">&minus;{units(owedNow, CASH_DECIMALS)}</span>
                 </div>
                 <div className="ledger-row total">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { keccak256, type Hex } from "viem";
 import { useReadContract } from "wagmi";
 import { securityAbi } from "@/lib/abi";
+import Copy from "./Copy";
 
 /** An offering document is prose. Anything larger is not one. */
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -101,12 +102,14 @@ export default function DocumentCheck({
       <p className="eyebrow">The document</p>
 
       <div className="kv">
-        <span className="k">Hash frozen at open</span>
-        <span className="v">{frozenHash}</span>
+        <span className="k">Fingerprint at open</span>
+        <span className="v">
+          <Copy value={frozenHash} label={`${frozenHash.slice(0, 14)}…${frozenHash.slice(-4)}`} />
+        </span>
       </div>
       <div className="kv">
-        <span className="k">Read from the security</span>
-        <span className="v">{docFromChain ? "yes" : "no — borrower supplied"}</span>
+        <span className="k">Taken from</span>
+        <span className="v">{docFromChain ? "the bond itself" : "the borrower — treat with care"}</span>
       </div>
 
       {state.k === "loading" && <p className="sub" style={{ marginTop: 14 }}>Fetching and hashing…</p>}
@@ -124,8 +127,10 @@ export default function DocumentCheck({
         <div style={{ marginTop: 14 }}>
           <p className="err">Mismatch. These bytes are not the ones this request committed to.</p>
           <div className="kv">
-            <span className="k">Fetched bytes hash to</span>
-            <span className="v">{state.got}</span>
+            <span className="k">These bytes</span>
+            <span className="v">
+              <Copy value={state.got} label={`${state.got.slice(0, 14)}…${state.got.slice(-4)}`} />
+            </span>
           </div>
           <p className="note" style={{ marginTop: 12 }}>
             The document behind this URI has changed since the request was opened. Bids already placed

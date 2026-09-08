@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { useWrite } from "@/lib/useWrite";
 import { amount } from "@/lib/amount";
@@ -13,6 +13,7 @@ import { units, duration, bps, rateLabel, short } from "@/lib/format";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
 import ManufacturedPayment from "@/components/ManufacturedPayment";
+import Copy from "@/components/Copy";
 import TxDialog from "@/components/TxDialog";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -98,10 +99,10 @@ export default function RequestPage() {
             <div>
               <div className="card">
                 <p className="eyebrow">Terms</p>
-                <Row k="Principal sought" v={`${units(r.principal, CASH_DECIMALS)} dUSD`} />
-                <Row k="Collateral pledged" v={`${units(r.collateralAmount, BOND_DECIMALS, 0)} RDN27`} />
-                <Row k="Term" v={`${duration(r.term)} from award`} />
-                <Row k="Borrower" v={short(r.borrower)} />
+                <Row k="Cash borrowed" v={`${units(r.principal, CASH_DECIMALS)} dUSD`} />
+                <Row k="Bond locked" v={`${units(r.collateralAmount, BOND_DECIMALS, 0)} RDN27`} />
+                <Row k="Loan length" v={duration(r.term)} />
+                <Addr k="Borrower" at={r.borrower} />
                 {open && (
                   <Row
                     k="Auction"
@@ -110,13 +111,13 @@ export default function RequestPage() {
                 )}
                 {funded && (
                   <>
-                    <Row k="Lender" v={short(r.lender)} />
-                    <Row k="Agreed repayment" v={`${units(r.repayAmount, CASH_DECIMALS)} dUSD`} />
+                    <Addr k="Lender" at={r.lender} />
+                    <Row k="Agreed at auction" v={`${units(r.repayAmount, CASH_DECIMALS)} dUSD`} />
                     <Row
-                      k="Repayment due"
+                      k="To repay now"
                       v={`${units(due ?? r.repayAmount, CASH_DECIMALS)} dUSD`}
                     />
-                    <Row k="Due" v={matured ? "matured" : `in ${duration(Number(r.dueAt) - now)}`} />
+                    <Row k="Time left" v={<Countdown to={Number(r.dueAt)} />} />
                   </>
                 )}
               </div>
@@ -125,26 +126,26 @@ export default function RequestPage() {
                 <p className="eyebrow">The bid</p>
                 {hasBid ? (
                   <>
-                    <Row k="Underwriter" v={short(best![0])} />
-                    <Row
-                      k="Submitted by"
-                      v={
-                        best![1].toLowerCase() === best![0].toLowerCase()
-                          ? `${short(best![1])} (in person)`
-                          : `${short(best![1])} (agent key)`
-                      }
+                    <Addr k="Lender" at={best![0]} />
+                    <Addr
+                      k="Bid placed by"
+                      at={best![1]}
+                      note={best![1].toLowerCase() === best![0].toLowerCase() ? "themselves" : "their agent"}
                     />
-                    <Row k="Repayment" v={`${units(best![2], CASH_DECIMALS)} dUSD`} />
+                    <Row k="Repayment bid" v={`${units(best![2], CASH_DECIMALS)} dUSD`} />
                     <Row k="Rate" v={rateLabel(rateOf(r.principal, best![2], r.term))} />
                     {reasoningRef && reasoningRef !== `0x${"00".repeat(32)}` && (
                       <>
-                        <Row k="Reasoning" v={`${reasoningRef.slice(0, 18)}…`} />
+                        <Row
+                          k="Reasoning"
+                          v={<Copy value={reasoningRef} label={`${reasoningRef.slice(0, 12)}…`} />}
+                        />
                         <p className="note" style={{ marginTop: 12 }}>
-                          The bid carries the hash of an explanation published to{" "}
+                          Written to{" "}
                           <a href={`${MIRROR}/topics/${HCS_TOPIC}/messages`} target="_blank" rel="noreferrer">
-                            HCS topic {HCS_TOPIC}
+                            topic {HCS_TOPIC}
                           </a>{" "}
-                          before the outcome was known. Hash the message and it matches this value.
+                          before anyone knew who had won.
                         </p>
                       </>
                     )}
@@ -157,11 +158,10 @@ export default function RequestPage() {
               {funded && schedule && schedule !== ZERO && (
                 <div className="card">
                   <p className="eyebrow">Settlement</p>
-                  <p className="lede" style={{ fontSize: 14 }}>
-                    Hedera will call <code>claim()</code> on this request at maturity. Nobody has to be
-                    watching.
+                  <p className="lede" style={{ fontSize: 14, marginBottom: 14 }}>
+                    Hedera closes this loan itself at maturity. Nobody has to be watching.
                   </p>
-                  <Row k="Scheduled transaction" v={String(schedule)} />
+                  <Addr k="Booked with the network" at={String(schedule)} />
                 </div>
               )}
             </div>
@@ -217,13 +217,47 @@ export default function RequestPage() {
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="kv">
       <span className="k">{k}</span>
       <span className="v">{v}</span>
     </div>
   );
+}
+
+/** An address is the one value on this page somebody wants to take away. */
+function Addr({ k, at, note }: { k: string; at: string; note?: string }) {
+  return (
+    <Row
+      k={k}
+      v={
+        <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
+          <Copy value={at} label={short(at)} />
+          {note && <span className="sub" style={{ fontSize: 12 }}>{note}</span>}
+          <a href={hashscan(at)} target="_blank" rel="noreferrer"
+             style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>↗</a>
+        </span>
+      }
+    />
+  );
+}
+
+/**
+ * The time left, ticking.
+ *
+ * A loan that says "in 9h" and never changes reads as a snapshot; the whole
+ * point of this row is that the clock is running toward something.
+ */
+function Countdown({ to }: { to: number }) {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const left = to - now;
+  if (left <= 0) return <>matured</>;
+  return <>{duration(left)} left</>;
 }
 
 function rateOf(principal: bigint, repay: bigint, term: bigint): number {
