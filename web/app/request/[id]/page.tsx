@@ -10,25 +10,34 @@ import { marketAbi, securityAbi, couponMarketAbi, mandatesAbi } from "@/lib/abi"
 import { lensAbi, explain, type Obstacle } from "@/lib/lens";
 import { MARKET, MANDATES, LENS, CASH, CASH_DECIMALS, BOND_DECIMALS, HCS_TOPIC, MIRROR, hashscan, hashscanAccount, hashscanSchedule } from "@/lib/chain";
 import { units, duration, bps, rateLabel, short } from "@/lib/format";
+import { parseRequestId, rateOf, ZERO_ADDRESS as ZERO, ZERO_HASH } from "@/lib/market";
+import { isRevert } from "@/lib/retry";
 import StatusPill from "@/components/Status";
 import DocumentCheck from "@/components/DocumentCheck";
 import ManufacturedPayment from "@/components/ManufacturedPayment";
 import Copy from "@/components/Copy";
 import TxDialog from "@/components/TxDialog";
 
-const ZERO = "0x0000000000000000000000000000000000000000";
-
 export default function RequestPage() {
   const { id: raw } = useParams<{ id: string }>();
-  const id = BigInt(raw);
+  // Parsed, not coerced. `BigInt("abc")` throws, and a throw during the render
+  // of a route component is a 500 — one wrong character in the address bar took
+  // the whole page down rather than saying it was not a request.
+  const id = parseRequestId(raw);
+  const known = id !== null;
   const { address } = useAccount();
 
-  const { data: r, refetch } = useReadContract({ address: MARKET, abi: marketAbi, functionName: "get", args: [id] });
+  const { data: r, error: readError, refetch } = useReadContract({
+    address: MARKET, abi: marketAbi, functionName: "get",
+    args: known ? [id] : undefined, query: { enabled: known },
+  });
   const { data: best, refetch: refetchBid } = useReadContract({
-    address: MARKET, abi: marketAbi, functionName: "bestBid", args: [id],
+    address: MARKET, abi: marketAbi, functionName: "bestBid",
+    args: known ? [id] : undefined, query: { enabled: known },
   });
   const { data: schedule } = useReadContract({
-    address: MARKET, abi: marketAbi, functionName: "settlementSchedule", args: [id],
+    address: MARKET, abi: marketAbi, functionName: "settlementSchedule",
+    args: known ? [id] : undefined, query: { enabled: known },
   });
 
   // Asked before anyone presses anything. A permissioned security can be paused
@@ -38,14 +47,39 @@ export default function RequestPage() {
   // the collateral earned while it was pledged. Showing `repayAmount` here would
   // be the wrong number the moment a coupon is recorded.
   const { data: due } = useReadContract({
-    address: MARKET, abi: couponMarketAbi, functionName: "repaymentDue", args: [id],
-    query: { refetchInterval: 15_000 },
+    address: MARKET, abi: couponMarketAbi, functionName: "repaymentDue",
+    args: known ? [id] : undefined,
+    query: { enabled: known, refetchInterval: 15_000 },
   });
 
   const { data: lens } = useReadContract({
-    address: LENS, abi: lensAbi, functionName: "check", args: [id],
-    query: { refetchInterval: 15_000 },
+    address: LENS, abi: lensAbi, functionName: "check",
+    args: known ? [id] : undefined,
+    query: { enabled: known, refetchInterval: 15_000 },
   });
+
+  // A request that cannot exist and one the market has never heard of are the
+  // same answer to whoever typed the URL. The market reverts on an id past its
+  // count, so the read failing *is* the answer — and the spinner below would
+  // otherwise say "Reading Hedera testnet…" for ever about a loan that is not
+  // there.
+  //
+  // Only a revert counts. An RPC that timed out has told us nothing, and
+  // answering that with "the market has never held this" would be inventing a
+  // fact out of a network failure.
+  if (id === null || isRevert(readError)) {
+    return (
+      <section className="first">
+        <div className="wrap">
+          <h1 className="display" style={{ fontSize: 38 }}>No request {label(raw)}</h1>
+          <p className="sub" style={{ maxWidth: "52ch" }}>
+            The market has never held a loan under that number.{" "}
+            <a href="/market">Every one it has held is here.</a>
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   // Keep the page's shape while the chain answers, so the layout does not jump
   // once it does.
@@ -134,7 +168,7 @@ export default function RequestPage() {
                     />
                     <Row k="Repayment bid" v={`${units(best![2], CASH_DECIMALS)} dUSD`} />
                     <Row k="Rate" v={rateLabel(rateOf(r.principal, best![2], r.term))} />
-                    {reasoningRef && reasoningRef !== `0x${"00".repeat(32)}` && (
+                    {reasoningRef && reasoningRef !== ZERO_HASH && (
                       <>
                         <Row
                           k="Reasoning"
@@ -284,12 +318,6 @@ function Countdown({ to }: { to: number }) {
   const left = to - now;
   if (left <= 0) return <>matured</>;
   return <>{duration(left)} left</>;
-}
-
-function rateOf(principal: bigint, repay: bigint, term: bigint): number {
-  if (repay <= principal || principal === 0n || term === 0n) return 0;
-  const v = ((repay - principal) * 10_000n * 31_536_000n) / (principal * term);
-  return v > 65535n ? 65535 : Number(v);
 }
 
 /**
@@ -510,7 +538,7 @@ function Actions(props: {
                   address: MARKET,
                   abi: marketAbi,
                   functionName: "bid",
-                  args: [props.id, parsed.value, `0x${"00".repeat(32)}` as Hex],
+                  args: [props.id, parsed.value, ZERO_HASH],
                 },
                 { onSuccess: props.onDone },
               );
@@ -666,3 +694,14 @@ function Actions(props: {
   );
 }
 
+/**
+ * A URL segment, quoted back safely.
+ *
+ * Whatever is in the address bar is a stranger's input, so it is shown as a
+ * short quoted string rather than dropped into the sentence as though it were
+ * a number the market had answered with.
+ */
+function label(raw: string | undefined): string {
+  const s = typeof raw === "string" ? raw : "";
+  return s.length === 0 ? "there" : `“${s.length > 24 ? `${s.slice(0, 24)}…` : s}”`;
+}
