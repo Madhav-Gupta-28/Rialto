@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSteps } from "@/lib/reveal";
 
 /**
  * The product, in one frame that holds still.
@@ -33,32 +33,8 @@ const LINES = [
 ];
 
 export default function Receipt() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [n, setN] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setN(5);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e?.isIntersecting) return;
-        io.disconnect();
-        let i = 0;
-        const id = setInterval(() => {
-          i += 1;
-          setN(i);
-          if (i >= 5) clearInterval(id);
-        }, 460);
-      },
-      { rootMargin: "-40px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  // Four lines, then the closing one.
+  const [ref, n] = useSteps<HTMLDivElement>(5, 460, "-40px");
 
   return (
     <div ref={ref} className="receipt">

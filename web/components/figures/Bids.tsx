@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSteps } from "@/lib/reveal";
 
 /**
  * How a price gets set without anyone reading one.
@@ -18,32 +18,8 @@ const BIDS = [
 const WINNER = 1;
 
 export default function Bids() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setStep(3);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e?.isIntersecting) return;
-        io.disconnect();
-        let n = 0;
-        const id = setInterval(() => {
-          n += 1;
-          setStep(n);
-          if (n >= 3) clearInterval(id);
-        }, 700);
-      },
-      { rootMargin: "-70px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  // Bids land, the lowest is marked, the rest stand down.
+  const [ref, step] = useSteps<HTMLDivElement>(3, 700);
 
   return (
     <div ref={ref}>

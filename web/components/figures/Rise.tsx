@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSeen } from "@/lib/reveal";
 
 /**
  * Fade a section up once, the first time it is reached, and never again.
@@ -9,24 +9,7 @@ import { useEffect, useRef, useState } from "react";
  * observer disconnects after firing so a slow scroll back up cannot replay it.
  */
 export default function Rise({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setShown(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: "-60px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const [ref, shown] = useSeen<HTMLDivElement>("-60px");
 
   return (
     <div ref={ref} className={`rise${shown ? " in" : ""}`} style={{ transitionDelay: `${delay}ms` }}>

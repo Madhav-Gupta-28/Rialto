@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSeen, useSteps } from "@/lib/reveal";
 
 /**
  * The three strongest facts, given a shape each.
@@ -13,31 +13,6 @@ import { useEffect, useRef, useState } from "react";
  * is a story with a turn in it, and printing four lines of equal weight threw
  * the turn away.
  */
-
-function useSeen<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setSeen(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e?.isIntersecting) {
-          io.disconnect();
-          setSeen(true);
-        }
-      },
-      { rootMargin: "-70px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return [ref, seen] as const;
-}
 
 /** The gap between explaining and knowing, drawn to scale. */
 function Ordering() {
@@ -81,23 +56,7 @@ function Unattended() {
 
 /** Three that went through, and the one that did not. */
 function Blocked() {
-  const [ref, seen] = useSeen<HTMLDivElement>();
-  const [n, setN] = useState(0);
-
-  useEffect(() => {
-    if (!seen) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setN(4);
-      return;
-    }
-    let i = 0;
-    const id = setInterval(() => {
-      i += 1;
-      setN(i);
-      if (i >= 4) clearInterval(id);
-    }, 480);
-    return () => clearInterval(id);
-  }, [seen]);
+  const [ref, n] = useSteps<HTMLDivElement>(4, 480);
 
   const rows = [
     ["20:33:25", false],

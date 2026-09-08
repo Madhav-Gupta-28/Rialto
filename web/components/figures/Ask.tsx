@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSeen } from "@/lib/reveal";
 
 /**
  * Two people ask the same lender for a loan, and only one gets it.
@@ -10,28 +10,7 @@ import { useEffect, useRef, useState } from "react";
  * and the only difference is whether anyone knows what the thing is worth.
  */
 export default function Ask() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [on, setOn] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setOn(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e?.isIntersecting) {
-          io.disconnect();
-          setOn(true);
-        }
-      },
-      { rootMargin: "-70px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const [ref, on] = useSeen<HTMLDivElement>();
 
   const row = (y: number, asset: string, answer: string, ok: boolean, delay: number) => (
     <g>

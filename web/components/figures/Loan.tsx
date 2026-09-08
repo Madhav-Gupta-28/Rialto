@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { prefersStill, useVisible } from "@/lib/reveal";
 
 /**
  * The one diagram. Everything else on the landing page supports it.
@@ -25,16 +26,26 @@ const STEPS: Step[] = [
 ];
 
 export default function Loan() {
+  // The only figure here that loops rather than assembling, so it runs on
+  // whether it is being looked at. It used to start on mount: by the time
+  // anyone scrolled to it, it was three steps in, which reads as a still
+  // picture of a middle rather than as a sequence with a beginning.
+  const [ref, visible] = useVisible<HTMLDivElement>("-80px");
   const [i, setI] = useState(0);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    // Reduced motion is answered before visibility, not after it. Asked the
+    // other way round, a reader who has turned animation off sees the opening
+    // frame — "You own a bond" — until they scroll to the diagram, and the
+    // resting frame is the one that has the ending in it.
+    if (prefersStill()) {
       setI(3);
       return;
     }
+    if (!visible) return;
     const id = setInterval(() => setI((n) => (n + 1) % STEPS.length), 2400);
     return () => clearInterval(id);
-  }, []);
+  }, [visible]);
 
   const s = STEPS[i]!;
   const tone = s.tone ? "var(--ink)" : "var(--ink-2)";
@@ -49,7 +60,7 @@ export default function Loan() {
   );
 
   return (
-    <div>
+    <div ref={ref}>
       <svg viewBox="0 0 900 250" width="100%" role="img" aria-label={s.says}>
         {post(YOU, "You")}
         {post(MID, "Rialto")}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { link } from "@/lib/links";
+import { useSteps } from "@/lib/reveal";
 
 /**
  * Why you can trust a machine with somebody else's money.
@@ -25,32 +25,7 @@ const STEPS = [
 const LIMITS = ["biggest loan", "total lent", "lowest rate", "longest term", "which bonds"];
 
 export default function Underwriting() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [n, setN] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setN(6);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e?.isIntersecting) return;
-        io.disconnect();
-        let i = 0;
-        const id = setInterval(() => {
-          i += 1;
-          setN(i);
-          if (i >= 6) clearInterval(id);
-        }, 520);
-      },
-      { rootMargin: "-70px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const [ref, n] = useSteps<HTMLDivElement>(6, 520);
 
   return (
     <div ref={ref}>

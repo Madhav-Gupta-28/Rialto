@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { link } from "@/lib/links";
+import { prefersStill, useSeen } from "@/lib/reveal";
 
 /**
  * What an issuer can do to a live loan.
@@ -22,38 +23,31 @@ const SWITCHES = [
 ];
 
 export default function Controls() {
-  const ref = useRef<HTMLDivElement>(null);
+  const [ref, seen] = useSeen<HTMLDivElement>();
   const [shut, setShut] = useState<number | null>(null);
-  const [live, setLive] = useState(false);
+  const live = seen;
 
+  // Each switch closes, then opens, three times round, and then the line is
+  // left whole. Twelve seconds of it — which is why the interval has to belong
+  // to the effect: started inside an observer callback, as this was, nothing
+  // stopped it when the reader moved on.
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setLive(true);
+    if (!seen) return;
+    if (prefersStill()) {
       setShut(1);
       return;
     }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e?.isIntersecting) return;
-        io.disconnect();
-        setLive(true);
-        let i = 0;
-        const id = setInterval(() => {
-          setShut(i % 5 === 4 ? null : i % 5);
-          i += 1;
-          if (i > 14) {
-            clearInterval(id);
-            setShut(null);
-          }
-        }, 850);
-      },
-      { rootMargin: "-70px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+    let i = 0;
+    const id = setInterval(() => {
+      setShut(i % 5 === 4 ? null : i % 5);
+      i += 1;
+      if (i > 14) {
+        clearInterval(id);
+        setShut(null);
+      }
+    }, 850);
+    return () => clearInterval(id);
+  }, [seen]);
 
   return (
     <div ref={ref}>
