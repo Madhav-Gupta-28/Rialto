@@ -168,18 +168,42 @@ contract RialtoMarketTest is Base {
     }
 
     /// A schedule that fires on an already-repaid request is harmless.
+    /**
+     * A booking the network refused to cancel, firing anyway.
+     *
+     * Hedera answers a rejected `deleteSchedule` in a response code, not a
+     * revert — the call succeeds and the transaction reads SUCCESS, so a caller
+     * reading only the call's boolean believes it released a booking that is
+     * still armed. `_cancelSettlement` reads exactly that boolean, so this is
+     * reachable here.
+     *
+     * It cannot take the collateral, and the assertion names why: `claim`
+     * refuses a request that is not `Funded`, and repaying moved it to
+     * `Repaid` first. Asserting only that it reverted would be weaker than it
+     * looks — remove the status guard and the exposure arithmetic underflows
+     * instead, so the collateral would survive by accident rather than by
+     * design, and this test would still pass.
+     */
     function test_scheduleFiringAfterRepaymentChangesNothing() public {
         MockHSS hss = _installHSS();
         uint256 id = _openBidAward();
 
+        // The network will refuse the release, and say so only in the code.
+        hss.setFailDelete(true);
+
+        uint256 bondBefore = bond.balanceOf(borrower);
         vm.prank(borrower);
         market.repay(id);
+        assertEq(hss.deleteCount(), 1, "the market did try to release it");
 
         vm.warp(uint256(market.get(id).dueAt) + 1);
-        (bool ok,) = hss.fire(0);
+        (bool ok, bytes memory reason) = hss.fire(0);
 
-        assertFalse(ok, "claim reverts on a repaid request, and nothing else happens");
+        assertFalse(ok, "the scheduled claim must revert, not settle");
+        assertEq(bytes4(reason), RialtoMarket.NotOpen.selector, "refused because the loan is not Funded");
         assertEq(uint8(_status(id)), uint8(Status.Repaid));
+        assertEq(bond.balanceOf(borrower), bondBefore + collateralAmount, "the borrower keeps the bond");
+        assertEq(bond.balanceOf(address(market)), 0, "nothing left in escrow");
     }
 
     function test_award_survivesEveryScheduleFailure() public {

@@ -306,3 +306,53 @@ contract LooseRegistryTest is Base {
         m2.bid(id, goodBid - 1, "");
     }
 }
+
+/**
+ * A settlement the network was asked to cancel, and did not.
+ *
+ * Hedera's `deleteSchedule` refuses in a *response code*, not in a revert: the
+ * call succeeds, the transaction reads SUCCESS, and a caller that only checks
+ * the call's boolean believes it released a booking that is still armed. A team
+ * on the Hedera Discord documented this in September 2026 after it produced a
+ * double payout in an escrow — the contract thought it had cancelled a refund,
+ * paid out, and the refund fired anyway.
+ *
+ * `RialtoMarket._cancelSettlement` reads that boolean and not the code, so the
+ * same leak is reachable here. It cannot do the same damage, and these tests
+ * are why: the scheduled call is `claim(id)`, and `claim` refuses any request
+ * that is not `Funded`. Repaying moves it to `Repaid` before the booking could
+ * ever fire.
+ *
+ * The market suite already fires a leaked booking end to end; these two pin the
+ * pieces it rests on — that `claim` itself refuses a repaid request, and that a
+ * release the network *accepts* really does leave nothing to fire.
+ */
+contract StaleSettlementTest is Base {
+    function test_claimAfterRepayIsRefused() public {
+        uint256 id = _openBidAward();
+
+        vm.prank(borrower);
+        market.repay(id);
+        assertEq(uint8(_status(id)), uint8(Status.Repaid));
+
+        // Exactly what a leaked schedule would attempt, at exactly the second
+        // the network would attempt it.
+        vm.warp(uint256(market.get(id).dueAt) + 1);
+        vm.expectRevert(RialtoMarket.NotOpen.selector);
+        market.claim(id);
+    }
+
+    function test_aReleasedBookingIsGoneForGood() public {
+        MockHSS hss = _installHSS();
+        uint256 id = _openBidAward();
+
+        vm.prank(borrower);
+        market.repay(id);
+
+        // The happy path: the network accepted the release, so there is no
+        // longer anything to fire.
+        vm.warp(uint256(market.get(id).dueAt) + 1);
+        vm.expectRevert(bytes("not pending"));
+        hss.fire(0);
+    }
+}

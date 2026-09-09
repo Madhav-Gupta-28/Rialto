@@ -8,6 +8,14 @@ pragma solidity 0.8.24;
  * exercise the scheduling path. It mirrors the two behaviours that matter:
  * `scheduleCall` returns a response code rather than reverting, and capacity
  * can be refused for a given second.
+ *
+ * It also models the trap a team on the Hedera Discord documented in September
+ * 2026: a refused `deleteSchedule` is a *silent* no-op. The call succeeds, the
+ * transaction status is SUCCESS, and the refusal exists only in the returned
+ * int64 — so a caller that checks the call's success boolean and ignores the
+ * response code believes it cancelled something it did not. `setFailDelete`
+ * reproduces exactly that, so the market's behaviour under it can be asserted
+ * rather than assumed.
  */
 contract MockHSS {
     int64 public constant SUCCESS = 22;
@@ -27,6 +35,7 @@ contract MockHSS {
     bool public capacity = true;
     bool public failCreate; // return a non-success code
     bool public revertAll; // fail at the EVM level, as a wrong address would
+    bool public failDelete; // refuse the delete, but only in the response code
 
     uint256 public deleteCount;
 
@@ -40,6 +49,10 @@ contract MockHSS {
 
     function setRevertAll(bool r) external {
         revertAll = r;
+    }
+
+    function setFailDelete(bool f) external {
+        failDelete = f;
     }
 
     function count() external view returns (uint256) {
@@ -71,9 +84,17 @@ contract MockHSS {
         return (SUCCESS, address(uint160(0xC0FFEE00 + scheduled.length)));
     }
 
-    function deleteSchedule(address) external returns (int64) {
+    /// Refusing here does not revert — that is the whole point of the trap.
+    function deleteSchedule(address schedule) external returns (int64) {
         require(!revertAll, "HSS down");
         deleteCount++;
+        if (failDelete) return CAPACITY_EXCEEDED;
+        for (uint256 i = 0; i < scheduled.length; i++) {
+            if (address(uint160(0xC0FFEE00 + i + 1)) == schedule) {
+                scheduled[i].deleted = true;
+                break;
+            }
+        }
         return SUCCESS;
     }
 
