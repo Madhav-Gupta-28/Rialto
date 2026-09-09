@@ -117,7 +117,7 @@ Take any one of these away and the design stops working.
 
 | Capability | What Rialto does with it | Live |
 |---|---|---|
-| **ATS** — ERC-3643 security | Collateral is a real permissioned token from the live ATS factory | [RDN27](https://hashscan.io/testnet/contract/0x52Ea050Fe77A303b1A61fe15d8894892aFF02114) |
+| **ATS** — ERC-3643 security | Collateral is a real permissioned token from the live ATS factory — ask it yourself with [`script/show-bond.sh`](script/show-bond.sh) | [RDN27](https://hashscan.io/testnet/contract/0x52Ea050Fe77A303b1A61fe15d8894892aFF02114) |
 | **ATS** — ERC-1643 documents | `getDocument` is the price-forming input; `open` freezes its keccak256 into the request | [`RialtoMarket.open`](src/RialtoMarket.sol) |
 | **ATS** — pause · control list · KYC | `ComplianceLens` probes all three read-only and returns *which* one blocks, so the UI says it in English instead of a hex selector | [`0xd65580d3…`](https://hashscan.io/testnet/contract/0xd65580d345aE3c13Ce58586C0891b67198f23246) |
 | **ATS** — corporate actions | A coupon paid to the escrow is netted off the repayment, so the borrower keeps the income on a bond they still own | [`CouponPassThrough`](src/CouponPassThrough.sol) |
